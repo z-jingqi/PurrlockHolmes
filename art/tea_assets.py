@@ -36,7 +36,23 @@ class Studio:
         self.rose=glaze("Tea • blush rim","cc887f")
         self.honey=glaze("Tea • tea stain accent","c89965",.32)
         self.tea=glaze("Tea • amber infusion","a36c49",.20)
-        self.steel=glaze("Tea • satin stainless steel","d5d6d7",.26,1.0)
+        self.steel=glaze("Tea • warm brushed stainless steel","a89b8d",.40,.88)
+        steel_shader=self.steel.node_tree.nodes.get("Principled BSDF")
+        steel_shader.inputs["Anisotropic"].default_value=.18
+        # Subtle directional roughness, not a painted line or glittering bump.
+        nodes=self.steel.node_tree.nodes; links=self.steel.node_tree.links
+        coordinates=nodes.new("ShaderNodeTexCoord")
+        streak=nodes.new("ShaderNodeVectorMath");streak.operation="MULTIPLY"
+        streak.inputs[1].default_value=(280,4,1)
+        grain=nodes.new("ShaderNodeTexNoise");grain.inputs["Scale"].default_value=1
+        grain.inputs["Detail"].default_value=1
+        range_node=nodes.new("ShaderNodeMapRange")
+        range_node.inputs["To Min"].default_value=.34
+        range_node.inputs["To Max"].default_value=.39
+        links.new(coordinates.outputs["Generated"],streak.inputs[0])
+        links.new(streak.outputs["Vector"],grain.inputs["Vector"])
+        links.new(grain.outputs["Fac"],range_node.inputs["Value"])
+        links.new(range_node.outputs["Result"],steel_shader.inputs["Roughness"])
         self.gray=glaze("Tea • low contrast engraving","adbbbf",.49,.30)
 
     def mesh(self,name,verts,faces,material):
@@ -112,55 +128,45 @@ class Studio:
         return self.lathe(name,[(r-.001,z-w),(r+.005,z-w*.55),(r+.006,z+w*.55),(r-.003,z+w)],mat,3,cap=False)
 
     def fork(self):
-        # Four connected bands follow the curvature of a single stamping.
-        # They share vertices through the shank, separating only at the slots.
-        def ease(x,lo,hi):
-            t=max(0,min(1,(x-lo)/(hi-lo)))
-            return t*t*(3-2*t)
-
-        def half_width(y):
-            return (.056+.010*ease(y,-.448,-.412)-.034*ease(y,-.40,-.094)
-                    +.084*ease(y,-.008,.174))
-
-        bm=bmesh.new();weld={}
-        rows=112; cols=6
-        start,tip=-.448,.478
+        """Build a one-piece four-tine dessert fork from the concept profile."""
+        from fork_profile import section,mesh_xy,mesh_z
+        bm=bmesh.new();weld={};uv_by_vert={}
+        rows=sorted(set(range(35,781,3))|set(range(35,67))|{780-(1066-86)*745/1360}|set(range(228,247))|set(range(758,781)),reverse=True)
+        cols=10
         for finger in range(4):
-            rows_here=[]
-            for j in range(rows+1):
-                v=start+(tip-start)*j/rows
-                y=v-.021*abs(finger-1.5)*ease(v,.245,tip)
-                w=half_width(v)
-                slot=ease(v,.229,.304)
-                band_center=(finger-1.5)*w*.5
-                reach=w*.25*(1-.34*slot)*(1-.66*ease(v,tip-.023,tip))
+            last=None
+            for row_q in rows:
+                q,left,right=section(row_q,finger)
                 row=[]
                 for k in range(cols+1):
-                    u=2*k/cols-1
-                    x=band_center+u*reach
-                    spine=(.024+.019*ease(y,-.431,-.116)+.083*ease(y,-.075,.163)
-                           -.026*ease(y,.167,.331)+.027*ease(y,.306,.475))
-                    grip=.009*(1-ease(y,.013,.122))*(1-min(1,(x/max(w,.01))**2))
-                    scoop=.012*ease(y,.064,.184)*(1-ease(y,.242,.311))*(x/w)**2
-                    rounded=.0031*slot*(1-u*u)
-                    z=spine+grip+scoop+rounded
-                    key=tuple(round(f,7) for f in (x,y,z))
-                    if key not in weld:weld[key]=bm.verts.new((x,y,z))
+                    p=left+(right-left)*k/cols
+                    x,y=mesh_xy(p,q);z=mesh_z(p,q)
+                    key=tuple(round(f,8) for f in (x,y,z))
+                    if key not in weld:
+                        weld[key]=bm.verts.new((x,y,z))
+                        uv_by_vert[weld[key]]=(p/240,1-q/815)
                     row.append(weld[key])
-                if j:
-                    prev=rows_here[-1]
+                if last:
                     for k in range(cols):
-                        bm.faces.new((prev[k],prev[k+1],row[k+1],row[k]))
-                rows_here.append(row)
-        mesh=bpy.data.meshes.new("Curved four-tine stamping")
+                        bm.faces.new((last[k],last[k+1],row[k+1],row[k]))
+                last=row
+        uv=bm.loops.layers.uv.new("Fork surface")
+        for face in bm.faces:
+            for loop in face.loops:
+                loop[uv].uv=uv_by_vert[loop.vert]
+        mesh=bpy.data.meshes.new("Concept-shaped dessert fork")
         bm.to_mesh(mesh);bm.free();mesh.update()
-        obj=bpy.data.objects.new("Swept steel handle, neck and scooped tines",mesh)
+        obj=bpy.data.objects.new("Warm satin steel, curved neck and long tines",mesh)
         self.collection.objects.link(obj);mesh.materials.append(self.steel)
+        mesh.materials.append(glaze("Tea • rolled steel edge","999087",.44,.86))
         for f in mesh.polygons:f.use_smooth=True
-        solid=obj.modifiers.new("Real steel stock thickness","SOLIDIFY")
-        solid.thickness=.017;solid.offset=-1
-        bevel=obj.modifiers.new("Polished edges","BEVEL")
-        bevel.width=.0030;bevel.segments=3;bevel.angle_limit=.53
+        solid=obj.modifiers.new("Stamped steel thickness","SOLIDIFY")
+        solid.thickness=.014;solid.offset=-1
+        solid.use_quality_normals=True
+        solid.material_offset_rim=1
+        bevel=obj.modifiers.new("Soft rolled edges","BEVEL")
+        bevel.width=.003;bevel.segments=4;bevel.angle_limit=.57
+        bevel.harden_normals=True
         return obj
 
     def dish(self,r,material,rim,wave=0):
@@ -207,7 +213,7 @@ def tea_set():
       ("cup","Tea · Celadon cup","Hollow glazed porcelain, sculpted foot and pulled handle."),
       ("saucer","Tea · Porcelain saucer","Ivory glaze, low rim and celadon hairline."),
       ("plate","Tea · Petal plate","Shallow dessert plate with a subtle scalloped edge."),
-      ("fork","Tea · Satin dessert fork","Curved stainless steel with a raised neck, scooped head and four tapered tines."),
+      ("fork","Tea · Satin dessert fork","Warm brushed steel with a narrow grip, a descending S-curve neck and four straight rising tines."),
       ("bowl","Tea · Blush bowl","Hollow scalloped porcelain with a fitted footring."),
       ("teapot","Tea · Moon teapot","Separate glazed lid, swept handle and an open pouring spout.")
     ]}

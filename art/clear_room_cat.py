@@ -5,7 +5,7 @@ import bpy
 
 scene = bpy.context.scene
 for obj in scene.objects:
-    if (obj.name.startswith("Cat ") or "tea_key" in obj or "room_balloon" in obj
+    if (obj.name.startswith("Cat ") or "tea_key" in obj or "room_balloon" in obj or "room_balloon_string" in obj
             or obj.instance_type == "COLLECTION" and obj.instance_collection
             and obj.instance_collection.get("asset_id") in {"rubber_plant","lance_plant"}):
         obj.hide_render = True

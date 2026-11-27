@@ -5,7 +5,7 @@ from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'art'))
 from room_props import scene_props, place, finish_material
-from hero_props import balloon,cat,pillow
+from hero_props import BALLOON_DESIGNS,balloon,balloon_string,cat,pillow
 from tea_assets import Studio
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
 def color(h):
@@ -239,11 +239,11 @@ anchor=bpy.data.objects.new("Ribbon pin",None);bpy.context.scene.collection.obje
 anchor.location=pin;anchor["room_marker"]="tether"
 
 # Individual latex silhouettes rendered as flat images in the shipped game.
-for i,(rgb,pos,scale,lean) in enumerate([
-    ("d9909a",(5.43,-.13,2.44),.755,-.12),
-    ("e6bd7e",(5.80,.11,2.83),.795,.05),
-    ("8dbbb2",(6.27,-.64,2.47),.725,.18)]):
-    tip=balloon(bpy.context.collection,ell,i,rgb,pos,scale,lean)
+cord_material=finish_material("Balloon • unbleached cotton cord","cdb493",.92,.22)
+balloon_tips=[]
+for i,(rgb,pos,scale,lean) in enumerate(BALLOON_DESIGNS):
+    tip=balloon(bpy.context.collection,i,rgb,pos,scale,lean)
+    balloon_tips.append(tip)
     marker=bpy.data.objects.new("Balloon string start "+str(i),None)
     bpy.context.scene.collection.objects.link(marker)
     marker.location=tip;marker["room_marker"]="balloon_"+str(i)
@@ -303,7 +303,7 @@ for key,location,yaw in [
     ('saucer',(-.88,-.39,1.004),.12),
     ('cup',(-.92,-.35,1.08),-.37),
     ('plate',(.10,-1.375,1.004),.23),
-    ('fork',(1.03,-1.51,1.004),-.62),
+    ('fork',(1.03,-1.51,1.004),-.28),
     ('bowl',(2.92,2.43,1.625),.09),
     ('teapot',(4.08,2.78,1.625),-.24),
 ]:
@@ -319,6 +319,9 @@ sc.world.node_tree.nodes['Background'].inputs[1].default_value=.42
 box('Backdrop',(0,0,-.62),(200,200,.15),sand,0)
 sc.render.engine='CYCLES';sc.cycles.samples=36;sc.cycles.use_denoising=False
 sc.render.resolution_x=1500;sc.render.resolution_y=1120;sc.render.resolution_percentage=100
+bpy.context.view_layer.update()
+for i,tip in enumerate(balloon_tips):
+    balloon_string(bpy.context.collection,i,pin,tip,cord_material,sc)
 sc.view_settings.view_transform='AgX';sc.render.image_settings.file_format='PNG'
 sc.view_settings.look='AgX - Medium High Contrast'
 bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/room.blend'),compress=True)

@@ -56,7 +56,7 @@ scene.cycles.seed=29
 # Keep ground contact and bounced light, but see the actual floor behind the bear.
 # Match the visibility of the approved room bake.
 for o in scene.objects:
-    if "tea_key" in o or "room_balloon" in o or (
+    if "tea_key" in o or "room_balloon" in o or "room_balloon_string" in o or (
         o.instance_type=="COLLECTION" and o.instance_collection
         and o.instance_collection.get("asset_id") in {"rubber_plant","lance_plant"}):
         o.hide_render=True

@@ -45,9 +45,18 @@ python3 art/pack_bear.py /tmp/purrlock-bake/bear /tmp/purrlock-bake/room-with-te
 | felt_slippers | Room · Felt slippers | 左右脚楦、橡胶底、抓绒内里、包边与缝线 | 0.34 kg / 双 |
 | reed_basket | Room · Linen-lined rattan basket | 藤条上下交织、卷边及蓝色亚麻衬布 | 0.57 kg |
 
-质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：固定家具、玩具及拖鞋住在同一张底图里；仅猫、两株植物的叶片和三只气球会响应点击。叶片分别以自己的叶柄接点转动，猫在独立的固定机位视口中以真实 3D 模型抬头、眨眼，乳胶气球是透明图，绳子是 Godot 绘制的柔性曲线，落点来自 Blender 的小熊爪上锚点。视角和渲染位置由 `room-layout.json` 中间数据传给打包器，不需在引擎中手摆模型。
+质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：固定家具、玩具及拖鞋住在同一张底图里；仅猫、两株植物的叶片和三只气球会响应点击。叶片分别以自己的叶柄接点转动，猫在独立的固定机位视口中以真实 3D 模型抬头、眨眼，气球在 Blender 里有独立的哑光乳胶球体、折叠气嘴与棉绳。运行时气球用不含绳子的透明图，棉绳用 Godot 实时绘制为独立柔性曲线，始终连接气嘴和 Blender 小熊爪的系绳点。视角和渲染位置由 `room-layout.json` 中间数据传给打包器，不需在引擎中手摆模型。
 
 焦点物件的软布靠枕与乳胶气球由 `art/hero_props.py` 建立；整屋可见物件的分类和落点见 [第一关清单](../docs/level-01-inventory.md)。叉子在 Blender 中以 4 倍尺寸烘焙，打包器保留 2 倍显示纹理与原尺寸点击遮罩。
+
+## 单独更新气球 · Balloons
+
+只替换三只气球和各自的气嘴、棉绳，不重排房间或覆盖叉子。Blender 中的独立绳对象供检查，故意不烘焙到背景或球体图里：
+
+```sh
+PURRLOCK_BALLOON_STAGE=/tmp/purrlock-balloons PURRLOCK_SAVE_BALLOONS=1 blender -b art/room.blend --python art/revise_balloons.py
+python3 art/pack_balloons.py /tmp/purrlock-balloons
+```
 
 ## 奶油猫 · Cream cat
 
@@ -76,3 +85,7 @@ python3 art/pack_fork.py /tmp/purrlock-fork
 PURRLOCK_BAKE_DIR=/tmp/purrlock-room-hd PURRLOCK_REFRESH_BACKGROUND_ONLY=1 PURRLOCK_HD_PLATE=1 PURRLOCK_SAMPLES=164 blender -b art/room.blend --python art/export_room.py
 python3 art/pack_hd_plate.py /tmp/purrlock-room-hd/room.png
 ```
+
+## 餐叉造型
+
+`fork_profile.py` 分别记录正面宽度和侧面高度：握柄细、接口逐渐放宽，叉颈下探至叉头根部，四根直齿沿同一斜面向上伸出。叉子是单件有厚度的网格，使用暖色拉丝钢材质。单独导出时，打包器按新侧面高度调整接触影，同一轮廓用于生成高清显示图和点击遮罩。对照图、试渲染和测试文件不入库。

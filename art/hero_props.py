@@ -1,5 +1,7 @@
 """Sculpted focal props for the afternoon room; edited with the locked camera."""
 import math
+import bpy
+from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Euler,Vector
 from room_props import finish_material
 from tea_assets import Studio
@@ -115,34 +117,81 @@ def cat(collection,ell):
         o.rotation_euler.y=.24*sign
     bulb("little bow wrapped knot",(0,-.337,-.385),(.044,.030,.041),inner)
 
-def balloon(collection,ell,index,rgb,pos,scale,lean):
+# Same soft colors as the room's crockery; a warmer matte latex than the old glossy shapes.
+BALLOON_DESIGNS=(
+    ("e2a6a7",(5.43,-.13,2.44),.755,-.07),
+    ("ecd096",(5.80,.11,2.83),.795,.13),
+    ("9abeb2",(6.27,-.64,2.47),.725,.17),
+)
+
+def balloon(collection,index,rgb,pos,scale,lean):
     s=maker(collection)
-    mat=finish_material("Balloon • thin satin latex "+str(index),rgb,.325,coat=.19)
+    mat=finish_material("Balloon • powdery latex "+str(index),rgb,.58,coat=0)
     bs=mat.node_tree.nodes.get("Principled BSDF")
-    bs.inputs["Coat Roughness"].default_value=.38
-    bs.inputs["Subsurface Weight"].default_value=.048
+    bs.inputs["Specular IOR Level"].default_value=.21
+    bs.inputs["Subsurface Weight"].default_value=.062
     bs.inputs["Subsurface Radius"].default_value=(.66,.29,.15)
     bs.inputs["Subsurface Scale"].default_value=.09
     geometry=Euler((0,lean,0)).to_matrix()
     def world(v):
         return tuple(Vector(pos)+geometry@Vector(v)*scale)
-    local=s.lathe("Balloon tensioned pear membrane",
-        [(r,(h+.65)) for r,h in [(.001,-.619),(.032,-.620),(.047,-.593),(.048,-.544),(.078,-.506),
-         (.132,-.466),(.206,-.385),(.282,-.309),(.348,-.211),(.394,-.118),(.426,-.009),
-         (.436,.102),(.418,.220),(.378,.321),(.312,.406),(.232,.469),(.132,.512),(.001,.537)]],
-        mat,steps=4,z=-.65)
+    local=s.lathe("Balloon • softly inflated pear membrane",
+        [(r,(h+.66)) for r,h in [(.001,-.591),(.031,-.583),(.049,-.553),(.081,-.519),
+         (.145,-.477),(.199,-.414),(.251,-.348),(.313,-.259),(.361,-.166),(.394,-.06),
+         (.409,.055),(.403,.17),(.378,.27),(.337,.365),(.267,.452),(.174,.512),(.083,.547),(.001,.558)]],
+        mat,steps=4,z=-.66)
     for vertex in local.data.vertices:
         x,y,z=vertex.co
-        oval=1+.043*math.cos(index*1.68+z*3)
-        arc=.032*(z+.16)**2*(-1 if index==2 else 1)
+        oval=1+.031*math.cos(index*1.68+z*3)
+        arc=.027*(z+.16)**2*(-1 if index==0 else 1)
         vertex.co=world((x*oval+arc,y*(1-.056*index),z))
     local["room_balloon"]=index
-    tip=world((0,0,-.619))
+    tip=world((.006,-.009,-.626))
     for name,points,radii in [
-      ("folded neck knot",[(0,0,-.584),(.030,-.020,-.605),(.037,-.041,-.626),(.009,-.038,-.638),(-.026,-.018,-.629)],
-       [.020,.024,.022,.017,.011]),
-      ("small turned knot lip",[(-.021,-.018,-.609),(-.024,.006,-.625),(0,.021,-.637),(.023,.012,-.626)],
-       [.012,.012,.014,.01])]:
+      ("folded latex knot",[(0,0,-.568),(.018,-.013,-.593),(.026,-.022,-.613),(.006,-.021,-.629),(-.020,-.009,-.627)],
+       [.024,.027,.027,.018,.012]),
+      ("turned latex cuff",[(-.026,-.014,-.611),(-.029,.007,-.625),(0,.026,-.637),(.026,.012,-.625)],
+       [.015,.015,.017,.013])]:
         o=s.tube("Balloon "+name,[world(p) for p in points],[r*scale for r in radii],mat,sections=12)
         o["room_balloon"]=index
     return tip
+
+
+def balloon_string(collection,index,anchor,tip,material,scene):
+    """Independent cotton cord for Blender inspection; the game draws its dynamic counterpart."""
+    data=bpy.data.curves.new("Balloon cord • flexible centerline",type="CURVE")
+    data.dimensions="3D"
+    data.resolution_u=24
+    data.bevel_depth=.0065
+    data.bevel_resolution=3
+    data.materials.append(material)
+    o=bpy.data.objects.new("Balloon • separate cotton string "+str(index+1),data)
+    collection.objects.link(o)
+    o["room_balloon_string"]=index
+    # The source cord and membrane are real independent objects, sharing only the tie point.
+    # Sprite renders exclude this curve so it never doubles the game's independently animated one.
+    o.hide_render=True
+    root,end=Vector(anchor),Vector(tip)
+    cam=scene.camera
+    frame=cam.data.view_frame(scene=scene)
+    w,h=1200,896
+    u0,u1=min(v.x for v in frame),max(v.x for v in frame)
+    v0,v1=min(v.y for v in frame),max(v.y for v in frame)
+    r2,e2=[world_to_camera_view(scene,cam,p) for p in (root,end)]
+    inverse=cam.matrix_world.inverted()
+    depths=[(inverse@p).z for p in (root,end)]
+    drape=((-11.0,5.5),(-9.4,6.8),(-7.0,9.2))[index]
+    spline=data.splines.new("BEZIER");spline.bezier_points.add(8)
+    for i,pt in enumerate(spline.bezier_points):
+        t=i/8
+        slack=math.sin(math.pi*t)
+        # Draw the same relaxed shape as the game at rest, in true local 3D at
+        # interpolated depth. Keep physical endpoints exact at the knots.
+        x=r2.x+(e2.x-r2.x)*t+slack*(drape[0]+7.7*math.sin(T*t+.46*index)+2*math.sin(1.54*index-t*2.5))/w
+        y=r2.y+(e2.y-r2.y)*t-slack*drape[1]/h
+        z=depths[0]+(depths[1]-depths[0])*t
+        scale=z/frame[0].z if cam.data.type=="PERSP" else 1.0
+        local=Vector(((u0+(u1-u0)*x)*scale,(v0+(v1-v0)*y)*scale,z))
+        pt.co=root if i==0 else end if i==8 else cam.matrix_world@local
+        pt.handle_left_type=pt.handle_right_type="AUTO"
+    return o

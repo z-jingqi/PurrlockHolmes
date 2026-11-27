@@ -36,7 +36,7 @@ assert len(plants)==2
 balloons=[[o for o in scene.objects if o.get("room_balloon")==i] for i in range(3)]
 assert all(len(group)==3 for group in balloons)
 geom=[o for o in scene.objects if o.type in {"MESH","CURVE"} or o.instance_type=="COLLECTION"]
-animated=[*(o for o in geom if o.name.startswith("Cat ")),*targets.values(),*plants.values(),*(o for group in balloons for o in group)]
+animated=[*(o for o in geom if o.name.startswith("Cat ") or "room_balloon_string" in o),*targets.values(),*plants.values(),*(o for group in balloons for o in group)]
 
 bpy.context.view_layer.update()
 
@@ -100,9 +100,14 @@ scene.cycles.adaptive_threshold=.021
 for key,obj in targets.items():
     obj.hide_render=False
     if key=="fork":
+        saved=(scene.view_settings.view_transform,scene.view_settings.look,scene.view_settings.exposure)
+        scene.view_settings.view_transform="Standard"
+        scene.view_settings.look="None"
+        scene.view_settings.exposure=0
         scene.render.resolution_percentage=400
         render(key,bounds[key])
         scene.render.resolution_percentage=100
+        scene.view_settings.view_transform,scene.view_settings.look,scene.view_settings.exposure=saved
     else:
         render(key,bounds[key])
     obj.hide_render=True

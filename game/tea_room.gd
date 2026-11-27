@@ -17,7 +17,9 @@ const TARGETS := ["saucer","cup","plate","fork","bowl","teapot"]
 const DRAW_ORDER := ["bowl","teapot","saucer","cup","plate","fork"]
 const PLANTS := ["rubber_plant","lance_plant"]
 const BALLOONS := ["balloon_0","balloon_1","balloon_2"]
-const RIBBON_COLORS := [Color("#a57977"),Color("#b3916c"),Color("#769489")]
+const COTTON_WARM := Color("#9e8062bb")
+const COTTON_LIGHT := Color("#d1b797ce")
+const CORD_DRAPE := [Vector2(-11.0,5.5),Vector2(-9.4,6.8),Vector2(-7.0,9.2)]
 const CUP_SETTLE := .27
 const CATEGORY := "餐具"
 const RENDER_SIZE := Vector2(1200,896)
@@ -322,9 +324,9 @@ func _balloon_pose(index: int) -> Vector3:
 			var drive:=sin(minf(t/.20,1.0)*PI*.5)*exp(-t*1.45)*(1.0-smoothstep(1.45,1.85,t))
 			var direction:=1.0 if balloon_tapped==0 else -1.0
 			var power:=1.0 if index==balloon_tapped else .63
-			drift.x+=direction*17.2*power*sin(t*(6.6+index*.66)+.60+phase*.24)*drive
-			drift.y-=8.6*power*cos(t*(4.4+index*.54)+phase*.42)*drive
-			twist+=direction*.092*sin(t*6.25+.60+phase*.21)*drive*power
+			drift.x+=direction*11.5*power*sin(t*(6.6+index*.66)+.60+phase*.24)*drive
+			drift.y-=6.5*power*cos(t*(4.4+index*.54)+phase*.42)*drive
+			twist+=direction*.073*sin(t*6.25+.60+phase*.21)*drive*power
 	return Vector3(drift.x,drift.y,twist)
 
 func _balloon_geometry(index: int,pose: Vector3) -> Array[Vector2]:
@@ -334,25 +336,38 @@ func _balloon_geometry(index: int,pose: Vector3) -> Array[Vector2]:
 	var displaced:=center+Vector2(pose.x,pose.y)
 	return [displaced,displaced+(tip-center).rotated(pose.z)]
 
-func _ribbon_curve(index: int,tip: Vector2,age: float) -> PackedVector2Array:
+func _cotton_curve(index: int,tip: Vector2,age: float) -> PackedVector2Array:
 	var root: Vector2=MARKERS["tether"]
 	var delta:=tip-root
-	var length:=maxf(absf(delta.y),24.0)
-	var phase:=1.61*index
-	var slack:=1.0
+	var phase:=1.54*index
+	var lagged:=0.0
 	if decor.has("balloons"):
-		var t:=maxf(0.0,float(decor["balloons"])-.10-index*.035)
-		slack+=maxf(0.0,sin(t*6.65))*exp(-t*2.2)*.65
-	var bow:=sin(age*1.22+phase)
-	var fan:=float(index-1)
-	var c1:=root+Vector2(delta.x*.05+(4.5*fan+6.0*bow)*slack,-length*.31)
-	var c2:=tip+Vector2(-delta.x*.16+(11.0*fan-7.8*bow)*slack,length*.34)
+		var t:=maxf(0.0,float(decor["balloons"])-.12-index*.033)
+		lagged=sin(t*8.3)*exp(-t*1.9)*5.0
+	var drape: Vector2=CORD_DRAPE[index]
 	var points:=PackedVector2Array()
-	for j in range(23):
-		var t:=float(j)/22.0
-		var q:=1.0-t
-		points.append(root*q*q*q+3*c1*q*q*t+3*c2*q*t*t+tip*t*t*t)
+	for j in range(35):
+		var t:=float(j)/34.0
+		var slack:=sin(PI*t)
+		# Gravity bows the warm cotton cord. A weaker wave follows the moving
+		# envelope, not the endpoints; both knots therefore stay fully attached.
+		var shape:=drape*slack
+		shape.x+=slack*(7.7*sin(TAU*t+.46*index)+(2.0+lagged)*sin(age*1.13+phase-t*2.5))
+		shape.y+=slack*lagged*.31
+		points.append(root+delta*t+shape)
+	points[0]=root
+	points[points.size()-1]=tip
 	return points
+
+func _draw_cotton(points: PackedVector2Array,f: float) -> void:
+	# The narrow, soft edge is the fiber silhouette, not a shiny outline. The
+	# subtle variation in the core reads as cotton at room scale, without stripes.
+	draw_polyline(points,COTTON_WARM,maxf(.82,f*1.13),true)
+	var fibers:=PackedColorArray()
+	for j in range(points.size()):
+		var tint:=.67+.09*sin(float(j)*2.21)
+		fibers.append(COTTON_LIGHT.lerp(Color("#f0d8b88c"),tint))
+	draw_polyline_colors(points,fibers,maxf(.49,f*.69),true)
 
 func _draw_balloon_bunch(f: float) -> void:
 	var origin:=_origin()
@@ -360,11 +375,11 @@ func _draw_balloon_bunch(f: float) -> void:
 	for i in range(BALLOONS.size()):
 		var pose:=_balloon_pose(i)
 		var geom:=_balloon_geometry(i,pose)
-		var points:=_ribbon_curve(i,geom[1],elapsed)
+		var points:=_cotton_curve(i,geom[1],elapsed)
 		for j in range(points.size()):points[j]=origin+points[j]*f
-		draw_polyline(points,RIBBON_COLORS[i],maxf(.68,f*1.01),true)
+		_draw_cotton(points,f)
 		drawn.append([geom[0],pose.z])
-	# Back balloon first; the front shapes naturally cover any ribbon behind them.
+	# Back balloon first; the front shapes naturally cover any cord behind them.
 	for i in [1,0,2]:
 		var spr: AtlasTexture=sprites[BALLOONS[i]]
 		var d:=spr.get_size()*f
@@ -595,8 +610,10 @@ func _test_frame() -> void:
 	if ticks==18:
 		_test(_clip_frame("rubber_plant")!=CLIPS["rubber_plant"][0] and cat.active and cat.head.position.y>cat.home.y,"Missing leaf or cat animation")
 		var end:=_balloon_geometry(1,_balloon_pose(1))[1]
-		var ribbon:=_ribbon_curve(1,end,elapsed)
-		_test(ribbon[0].is_equal_approx(MARKERS["tether"]) and ribbon[-1].is_equal_approx(end),"Ribbon did not maintain both tie points")
+		var cord:=_cotton_curve(1,end,elapsed)
+		_test(cord[0].is_equal_approx(MARKERS["tether"]) and cord[-1].is_equal_approx(end),"Cotton cord did not maintain both tie points")
+		_test(cord[17].distance_to((cord[0]+cord[-1])*.5)>6.0,"Balloon cord lost its softly bowed silhouette")
+		_test(_decor_at(cord[17]).is_empty(),"Cotton cord must not be an interaction target")
 		_test(taken.is_empty() and flights.is_empty(),"Decorative actions affected objective")
 	if ticks==64:
 		_test(not cat.active and cat.head.position==cat.home and cat.head.rotation==Vector3.ZERO,"Cat did not return to idle")

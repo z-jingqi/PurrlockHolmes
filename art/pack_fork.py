@@ -6,7 +6,8 @@ from fork_shadow import make_shadow
 
 root=Path(__file__).resolve().parents[1]
 stage=Path(sys.argv[1])
-l,t,r,b=json.loads((stage/"fork.json").read_text())["bounds"]
+meta=json.loads((stage/"fork.json").read_text())
+l,t,r,b=meta["bounds"]
 source=Image.open(stage/"fork.png").convert("RGBA")
 size=(r-l,b-t)
 assert source.size==tuple(v*4 for v in size)
@@ -19,7 +20,8 @@ part=im.crop(box)
 draw=source.crop(tuple(v*4 for v in box)).resize(
     tuple(v*2 for v in part.size),Image.Resampling.LANCZOS)
 draw.save(root/"assets"/"fork-detail.png",optimize=True)
-make_shadow(draw,root/"assets"/"fork-shadow.png")
+make_shadow(draw,root/"assets"/"fork-shadow.png",
+            [((x-l-box[0])*2,z) for x,z in meta["shadow_profile"]])
 atlas_file=root/"assets"/"tea-sprites.webp"
 atlas=Image.open(atlas_file).convert("RGBA")
 frames_file=root/"game"/"tea_frames.gd"

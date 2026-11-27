@@ -4,12 +4,12 @@ const FRAMES := {
 	"saucer": [Rect2(3,3,66,43),Vector2(498,425)],
 	"cup": [Rect2(75,3,47,48),Vector2(508,410)],
 	"plate": [Rect2(128,3,86,58),Vector2(516,476)],
-	"fork": [Rect2(448,665,69,38),Vector2(581,514)],
+	"fork": [Rect2(448,665,58,45),Vector2(588,510)],
 	"bowl": [Rect2(293,3,59,48),Vector2(825,349)],
 	"teapot": [Rect2(358,3,98,74),Vector2(890,336)],
-	"balloon_0": [Rect2(462,3,62,70),Vector2(950,456)],
-	"balloon_1": [Rect2(530,3,64,72),Vector2(989,428)],
-	"balloon_2": [Rect2(600,3,59,65),Vector2(1010,499)],
+	"balloon_0": [Rect2(462,3,58,70),Vector2(952,455)],
+	"balloon_1": [Rect2(530,3,61,70),Vector2(991,428)],
+	"balloon_2": [Rect2(600,3,57,64),Vector2(1011,499)],
 	"rubber_plant_00": [Rect2(3,83,112,108),Vector2(232,336)],
 	"rubber_plant_01": [Rect2(121,83,112,108),Vector2(232,336)],
 	"rubber_plant_02": [Rect2(239,83,112,108),Vector2(232,336)],
@@ -50,8 +50,8 @@ const FRAMES := {
 const CLIPS := {"rubber_plant": ["rubber_plant_00", "rubber_plant_01", "rubber_plant_02", "rubber_plant_03", "rubber_plant_04", "rubber_plant_05", "rubber_plant_06", "rubber_plant_07", "rubber_plant_08", "rubber_plant_09", "rubber_plant_10", "rubber_plant_11", "rubber_plant_12", "rubber_plant_13", "rubber_plant_14", "rubber_plant_15", "rubber_plant_16"], "lance_plant": ["lance_plant_00", "lance_plant_01", "lance_plant_02", "lance_plant_03", "lance_plant_04", "lance_plant_05", "lance_plant_06", "lance_plant_07", "lance_plant_08", "lance_plant_09", "lance_plant_10", "lance_plant_11", "lance_plant_12", "lance_plant_13", "lance_plant_14", "lance_plant_15", "lance_plant_16"]}
 const MARKERS := {
 	"tether": Vector2(938.14,592.70),
-	"balloon_0": Vector2(979.41,519.86),
-	"balloon_1": Vector2(1011.67,493.44),
-	"balloon_2": Vector2(1024.83,557.13),
+	"balloon_0": Vector2(977.75,520.17),
+	"balloon_1": Vector2(1008.72,493.12),
+	"balloon_2": Vector2(1025.24,558.04),
 	"cup_drop": Vector2(0.14,4.14),
 }
