@@ -1,0 +1,7 @@
+.godot/
+*.blend1
+__pycache__/
+.DS_Store
+assets/room.png
+dist/
+assets/room.png.import
