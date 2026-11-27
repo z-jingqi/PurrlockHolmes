@@ -28,7 +28,7 @@ export default {async fetch(req, env){
     const headers=new Headers(page.headers);
     headers.set("Cache-Control","no-cache");
     headers.set("X-Content-Type-Options","nosniff");
-    headers.set("Content-Security-Policy","default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'");
+    headers.set("Content-Security-Policy","default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'");
     return new Response(page.body,{status:page.status,headers});
   }
   if(env?.ASSETS&&route==="/physics/engine.wasm"){

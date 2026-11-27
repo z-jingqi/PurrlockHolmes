@@ -73,10 +73,10 @@ func _build_view() -> void:
 	env.environment.background_color=Color("#ebdcc8")
 	env.environment.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
 	env.environment.ambient_light_color=Color("#ffeddf")
-	env.environment.ambient_light_energy=.68
+	env.environment.ambient_light_energy=.44
 	world.add_child(env)
-	_light(Vector3(-5,9,7),1.30,Color("#fff2db"),true)
-	_light(Vector3(5,7,-4),.48,Color("#deefff"),false)
+	_light(Vector3(-5,9,7),.65,Color("#fff2db"),true)
+	_light(Vector3(5,7,-4),.22,Color("#deefff"),false)
 	camera=Camera3D.new()
 	world.add_child(camera)
 	camera.position=Vector3(8.0,14.4,15.6)
