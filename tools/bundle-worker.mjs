@@ -6,6 +6,9 @@ const types = {
   "/game.js":"text/javascript; charset=utf-8",
   "/assets/room.webp":"image/webp",
   "/assets/pick.png":"image/png",
+  "/assets/pickups.webp":"image/webp",
+  "/assets/pickups.json":"application/json; charset=utf-8",
+  "/assets/paw-box.svg":"image/svg+xml",
 };
 const files = Object.fromEntries(Object.entries(types).map(([p,t]) => [p,[t,readFileSync("dist"+p).toString("base64")]]));
 writeFileSync("dist/worker.mjs", `const files=${JSON.stringify(files)};
@@ -17,6 +20,6 @@ export default {fetch(req){
   return new Response(req.method==="HEAD"?null:Uint8Array.from(atob(file[1]),c=>c.charCodeAt(0)),{
     headers:{"Content-Type":file[0],"Cache-Control":"public, max-age=300",
       "X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer",
-      "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'"}});
+      "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"}});
 }};
 `);

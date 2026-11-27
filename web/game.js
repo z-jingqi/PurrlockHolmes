@@ -1,7 +1,16 @@
 "use strict";
 const canvas = document.getElementById("room");
 const ctx = canvas.getContext("2d");
-const found = new Map();
+const found = new Map(), taken = new Set(), flying = new Map();
+const layer = document.getElementById("flight-layer"), liftCtx = layer.getContext("2d");
+const boxImg = document.getElementById("box");
+const atlas = new Image();
+let props, raf = 0, bump = -Infinity;
+const LIFT = 140, DURATION = 580;
+const ease = t => t*t*(3-2*t);
+const mix = (a,b,t) => a+(b-a)*t;
+const lerp2 = (a,b,t) => [mix(a[0],b[0],t),mix(a[1],b[1],t)];
+const curve = (a,b,c,d,t) => lerp2(lerp2(lerp2(a,b,t),lerp2(b,c,t),t),lerp2(lerp2(b,c,t),lerp2(c,d,t),t),t);
 const names = ["杯子", "盘子", "叉子", "小碗", "茶匙", "茶壶", "小碟"];
 const chips = names.map(name => {
   const el = document.createElement("li");
@@ -24,22 +33,61 @@ function paint() {
   ctx.setTransform(dpi, 0, 0, dpi, 0, 0);
   ctx.clearRect(0, 0, cw, ch);
   ctx.drawImage(art, tx, ty, w * scale, h * scale);
-  for (const [x,y] of found.values()) {
-    const X = tx + x * scale, Y = ty + y * scale;
-    ctx.beginPath(); ctx.arc(X, Y, 9, 0, Math.PI * 2); ctx.fillStyle = "#61846a"; ctx.fill();
-    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.beginPath();ctx.moveTo(X-4,Y);ctx.lineTo(X-1,Y+3);ctx.lineTo(X+4,Y-4);ctx.stroke();
+  for (const id of taken) {
+    const {patch:[x,y,pw,ph],origin:[ox,oy]} = props[id];
+    ctx.drawImage(atlas,x,y,pw,ph,tx+ox*scale,ty+oy*scale,pw*scale,ph*scale);
   }
 }
 new ResizeObserver(() => {
   const bounds = canvas.getBoundingClientRect();
   cw = bounds.width; ch = bounds.height; dpi = Math.min(window.devicePixelRatio || 1, 2);
   canvas.width = Math.round(cw * dpi); canvas.height = Math.round(ch * dpi);
+  const q=layer.getBoundingClientRect(); layer.width=Math.round(q.width*dpi); layer.height=Math.round(q.height*dpi);
   paint();
-}).observe(canvas);
+}).observe(document.querySelector(".case"));
 function sync() {
   chips.forEach((chip,i) => chip.classList.toggle("found", found.has(i + 1)));
   document.querySelector("#count").innerHTML = found.size + " <small>/ 7</small>";
   document.querySelector("#victory").hidden = found.size !== names.length;
+  paint();
+}
+function frame(now) {
+  raf = 0;
+  liftCtx.setTransform(dpi,0,0,dpi,0,0);
+  liftCtx.clearRect(0,0,layer.width/dpi,layer.height/dpi);
+  const a=canvas.getBoundingClientRect(), b=layer.getBoundingClientRect();
+  const k=boxImg.parentElement.getBoundingClientRect();
+  const end=[k.left-b.left+k.width/2,k.top-b.top+k.height*.34];
+  for (const [id,{at,x,y,f}] of flying) {
+    const age=now-at;
+    if (age>=DURATION) {
+      flying.delete(id); found.set(id,true); bump=now; sync(); continue;
+    }
+    const p=[a.left-b.left+x,a.top-b.top+y], up=[p[0],p[1]-26];
+    const [sx,sy,sw,sh]=props[id].sprite;
+    let c,z,t;
+    if (age<LIFT) {
+      t=Math.max(0,age/LIFT); c=lerp2(p,up,1-(1-t)**3); z=mix(1,1.12,t); liftCtx.globalAlpha=1;
+    } else {
+      t=(age-LIFT)/(DURATION-LIFT);
+      const dx=end[0]-up[0];
+      c=curve(up,[up[0]+dx*.26,up[1]-40],[end[0]-dx*.26,end[1]-73],end,ease(t));
+      z=mix(1.12,.17,t*t); liftCtx.globalAlpha=1-ease(Math.max(0,(t-.80)/.20));
+    }
+    const w=sw*f*z,h=sh*f*z;
+    liftCtx.drawImage(atlas,sx,sy,sw,sh,c[0]-w/2,c[1]-h/2,w,h);
+  }
+  liftCtx.globalAlpha=1;
+  const pulse=Math.max(0,1-(now-bump)/180);
+  boxImg.style.transform=pulse>0?`scale(${1+Math.sin(pulse*Math.PI)*.09})`:"";
+  if(flying.size||pulse>0) raf=requestAnimationFrame(frame);
+}
+function take(id) {
+  if(taken.has(id))return;
+  const [x,y]=props[id].center;
+  taken.add(id);
+  flying.set(id,{at:performance.now(),x:tx+x*scale,y:ty+y*scale,f:scale});
+  if(!raf)raf=requestAnimationFrame(frame);
   paint();
 }
 function pos(e) {
@@ -66,14 +114,20 @@ canvas.addEventListener("pointerup", e => {
     const [p,q] = pos(e), x = Math.floor((p-tx)/scale), y = Math.floor((q-ty)/scale), j = 4*(y*w+x);
     if (x>=0 && x<w && y>=0 && y<h) {
       const r=px[j], id=Math.round(r/32);
-      if(id>=1 && id<=7 && Math.abs(r-id*32)<=2 && px[j+1]<4 && px[j+2]<4 && !found.has(id)) {found.set(id,[x,y]);sync();}
+      if(id>=1 && id<=7 && Math.abs(r-id*32)<=2 && px[j+1]<4 && px[j+2]<4 ) take(id);
     }
   }
   drag=undefined;
 });
 for (const type of ["pointercancel","lostpointercapture"]) canvas.addEventListener(type,e=>{ if(drag?.id===e.pointerId) drag=undefined; });
-document.getElementById("again").addEventListener("click", () => {found.clear();panX=panY=0;sync();});
-Promise.all([new Promise((y,n)=>{art.onload=y;art.onerror=n;art.src="./assets/room.webp";}),new Promise((y,n)=>{mask.onload=y;mask.onerror=n;mask.src="./assets/pick.png";})]).then(()=>{
+document.getElementById("again").addEventListener("click", () => {found.clear();taken.clear();flying.clear();panX=panY=0;bump=-Infinity;
+  if(raf){cancelAnimationFrame(raf);raf=0;}
+  frame(performance.now());sync();});
+const load=(img,path)=>new Promise((yes,no)=>{img.onload=yes;img.onerror=no;img.src=path;});
+Promise.all([load(art,"./assets/room.webp"),load(mask,"./assets/pick.png"),load(atlas,"./assets/pickups.webp"),
+  fetch("./assets/pickups.json").then(r=>{if(!r.ok)throw Error("Missing pickup data");return r.json();})
+]).then(([, , , data])=>{
+  props=data;
   w=art.naturalWidth;h=art.naturalHeight;
   if(w!==mask.naturalWidth||h!==mask.naturalHeight) throw Error("Misaligned pick map");
   const c=document.createElement("canvas");c.width=w;c.height=h;const d=c.getContext("2d",{willReadFrequently:true});d.drawImage(mask,0,0);px=d.getImageData(0,0,w,h).data;

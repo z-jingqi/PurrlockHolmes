@@ -2,11 +2,19 @@ extends Control
 
 const NAMES := ["杯子", "盘子", "叉子", "小碗", "茶匙", "茶壶", "小碟"]
 const ROOM := preload("res://assets/room.webp")
+const BOX := preload("res://assets/paw-box.svg")
+const ATLAS := preload("res://assets/pickups.webp")
+const ITEMS := preload("res://assets/pickup_data.gd").ITEMS
+const LIFT := 0.14
+const DURATION := 0.58
+const FOOTER := 88.0
 var mask: Image
 var scene_size: Vector2
 var pan := Vector2.ZERO
 var known: Dictionary = {}
-var pins: Dictionary = {}
+var flights: Dictionary = {}
+var taken: Dictionary = {}
+var bump := 0.0
 var active := -2
 var down := Vector2.ZERO
 var offset_at_down := Vector2.ZERO
@@ -63,16 +71,18 @@ func _layout() -> void:
 	_clamp()
 	title.position = Vector2(20, 5)
 	subtitle.position = Vector2(22, 46)
-	hud.position = Vector2(20, size.y - 70)
+	hud.position = Vector2(20, size.y - 78)
 	hint.position = Vector2(maxf(20, size.x - 178), 21)
 	hint.visible = size.x >= 350
-	list.position = Vector2(20, size.y - 42)
+	list.position = Vector2(20, size.y - 50)
 	done.position = Vector2(22, 87)
 	queue_redraw()
 
 func _reset() -> void:
 	known.clear()
-	pins.clear()
+	flights.clear()
+	taken.clear()
+	bump = 0.0
 	pan = Vector2.ZERO
 	active = -2
 	_refresh()
@@ -83,7 +93,7 @@ func _refresh() -> void:
 	var labels := PackedStringArray()
 	for i in range(7):
 		labels.append(("✓ " if known.has(i + 1) else "· ") + NAMES[i])
-	list.text = "  ".join(labels) if size.x >= 390 else "  ".join(labels.slice(0, 4)) + "\n" + "  ".join(labels.slice(4))
+	list.text = "  ".join(labels) if size.x >= 500 else "  ".join(labels.slice(0, 4)) + "\n" + "  ".join(labels.slice(4))
 	done.text = "餐具找齐了！" if known.size() == 7 else ""
 	reset.visible = known.size() == 7
 	queue_redraw()
@@ -106,14 +116,64 @@ func _draw() -> void:
 	var f := _factor()
 	var origin := _image_origin()
 	draw_texture_rect(ROOM, Rect2(origin, scene_size * f), false)
-	for id: int in pins:
-		var pos: Vector2 = origin + Vector2(pins[id]) * f
-		draw_circle(pos, 10, Color("#6f9779"), true, -1, true)
-		draw_polyline(PackedVector2Array([pos + Vector2(-4, 0), pos + Vector2(-1, 4), pos + Vector2(5, -4)]), Color.WHITE, 2, true)
+	for id: int in taken:
+		var data: Dictionary = ITEMS[str(id)]
+		var patch := _rect(data["patch"])
+		draw_texture_rect_region(ATLAS, Rect2(origin + _vec(data["origin"]) * f, patch.size * f), patch)
 	draw_rect(Rect2(0, 0, size.x, 72 if known.size() < 7 else 179), Color("#fff7e9"))
-	draw_rect(Rect2(0, size.y - 79, size.x, 79), Color("#fff7e9"))
+	draw_rect(Rect2(0, size.y - FOOTER, size.x, FOOTER), Color("#fff7e9"))
 	draw_line(Vector2(0, 71), Vector2(size.x, 71), Color("#dec3a8"))
-	draw_line(Vector2(0, size.y - 79), Vector2(size.x, size.y - 79), Color("#dec3a8"))
+	draw_line(Vector2(0, size.y - FOOTER), Vector2(size.x, size.y - FOOTER), Color("#dec3a8"))
+
+	var box_size := Vector2(96, 67) * (1.0 + sin(bump * PI) * .09)
+	var dest := _box_center()
+	draw_texture_rect(BOX, Rect2(dest - box_size / 2.0, box_size), false)
+	for id: int in flights:
+		_draw_flight(id)
+
+func _box_center() -> Vector2:
+	return Vector2(size.x - 65, size.y - 46)
+
+func _vec(a: Array) -> Vector2:
+	return Vector2(a[0], a[1])
+
+func _rect(a: Array) -> Rect2:
+	return Rect2(a[0], a[1], a[2], a[3])
+
+func _draw_flight(id: int) -> void:
+	var flight: Dictionary = flights[id]
+	var age: float = flight["age"]
+	var source: Vector2 = flight["source"]
+	var aperture := _box_center() + Vector2(0, -10)
+	var sprite := _rect(ITEMS[str(id)]["sprite"])
+	var lift := source + Vector2(0, -26)
+	var p := source
+	var t := 0.0
+	var zoom := 1.0
+	if age < LIFT:
+		t = clampf(age / LIFT, 0.0, 1.0)
+		p = source.lerp(lift, 1.0 - pow(1.0 - t, 3.0))
+		zoom = lerpf(1.0, 1.12, t)
+	else:
+		t = clampf((age - LIFT) / (DURATION - LIFT), 0.0, 1.0)
+		p = lift.bezier_interpolate(lift + Vector2((aperture.x-lift.x)*.26,-40), aperture + Vector2((lift.x-aperture.x)*.26,-73), aperture, t*t*(3.0-2.0*t))
+		zoom = lerpf(1.12, .17, t*t)
+	var dims := sprite.size * float(flight["factor"]) * zoom
+	var opacity := 1.0 if age < LIFT else 1.0 - smoothstep(.80, 1.0, t)
+	draw_texture_rect_region(ATLAS, Rect2(p - dims / 2.0, dims), sprite, Color(1,1,1,opacity))
+
+func _process(delta: float) -> void:
+	if flights.is_empty() and bump <= 0.0:
+		return
+	bump = maxf(0.0, bump - delta * 5)
+	for id: int in flights.keys():
+		flights[id]["age"] += delta
+		if flights[id]["age"] >= DURATION:
+			flights.erase(id)
+			known[id] = true
+			bump = .9
+			_refresh()
+	queue_redraw()
 
 func _pick(p: Vector2i) -> int:
 	if not Rect2i(Vector2i.ZERO, mask.get_size()).has_point(p):
@@ -123,14 +183,16 @@ func _pick(p: Vector2i) -> int:
 	var id := roundi(v / 32.0)
 	return id if id >= 1 and id <= 7 and absi(v - id * 32) <= 2 and c.g < .015 and c.b < .015 else 0
 
-func _collect(id: int, p: Vector2i) -> void:
-	if id > 0 and not known.has(id):
-		known[id] = true
-		pins[id] = p
-		_refresh()
+func _collect(id: int, _p: Vector2i) -> void:
+	if id <= 0 or taken.has(id):
+		return
+	taken[id] = true
+	var f := _factor()
+	flights[id] = {"age": 0.0, "source": _image_origin() + _vec(ITEMS[str(id)]["center"]) * f, "factor": f}
+	queue_redraw()
 
 func _press(id: int, p: Vector2) -> void:
-	if active != -2 or p.y < (179 if known.size() == 7 else 72) or p.y >= size.y - 79:
+	if active != -2 or p.y < (179 if known.size() == 7 else 72) or p.y >= size.y - FOOTER:
 		return
 	active = id
 	down = p
@@ -152,7 +214,7 @@ func _release(id: int, p: Vector2, canceled: bool) -> void:
 		return
 	if not canceled:
 		_move(id, p)
-		if not dragged and p.y >= 72 and p.y < size.y - 79:
+		if not dragged and p.y >= 72 and p.y < size.y - FOOTER:
 			var q := Vector2i(((p - _image_origin()) / _factor()).floor())
 			_collect(_pick(q), q)
 	active = -2
@@ -201,6 +263,8 @@ func _test_demo() -> void:
 		_mouse_at(p, false)
 		_mouse_at(p, true)
 		_mouse_at(p, false)
+		all_hit = all_hit and not known.has(i + 1) and flights.size() == 1
+		_process(DURATION + .01)
 		all_hit = all_hit and known.has(i + 1) and known.size() == i + 1
 	var won := all_hit and known.size() == 7 and reset.visible
 	_reset()
@@ -212,7 +276,7 @@ func _test_demo() -> void:
 	touch.pressed = false
 	touch.canceled = true
 	_input(touch)
-	var cancel_ok := known.is_empty() and active == -2
+	var cancel_ok := known.is_empty() and active == -2 and flights.is_empty()
 	var p := Vector2(400,220)
 	var previous := _image_origin()
 	_mouse_at(p, true)

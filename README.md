@@ -1,6 +1,6 @@
 # 福尔猫斯 · Purrlock Holmes
 
-**案卷 01：午后客厅。** 拖动画面查看房间，找到并点击全部七件餐具。收集标记留在原处，方便回看。没有倒计时、三消、相机旋转或视差。
+**案卷 01：午后客厅。** 拖动画面查看房间，找到并点击全部七件餐具。点中的物品会浮起，沿弧线落入猫爪收纳匣，落下才计数。没有倒计时、三消、相机旋转或视差。
 
 ## Godot / Blender
 
@@ -36,3 +36,14 @@ python3 -m http.server 8030 -d dist
 - Variable `CLOUDFLARE_ACCOUNT_ID`：目标 Cloudflare 账号的 Account ID。
 
 未配置以上两项时，部署步骤会明确失败，不会假装发布成功。
+
+### 收纳动画素材
+
+使用相同的 Blender 镜头渲染无道具房间和七件透明道具后，再打包逐件清除和飞行动画所需的图集：
+
+```sh
+blender -b art/room.blend --python art/render_pickups.py
+python3 art/pack_pickups.py  # 需要 Pillow
+```
+
+可用 `PURR_PICKUP_DIR` 指定中间图输出目录。游戏不会加载整张干净房间，只按实际收集状态叠放各件物品的局部背景。
