@@ -15,18 +15,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: node --check web/game.js
-      - run: sh tools/build-web.sh
+      - run: node --check web/worker.mjs
       - name: Fetch official Godot Web toolchain
         run: |
           mkdir -p /tmp/purrlock-godot
           curl -fsSL --retry 2 "https://downloads.godotengine.org/?version=${GODOT_VERSION}&flavor=stable&slug=linux.x86_64.zip&platform=linux.64" -o /tmp/purrlock-godot/godot.zip
           unzip -q /tmp/purrlock-godot/godot.zip -d /tmp/purrlock-godot
           python3 tools/fetch-godot-web-template.py "$GODOT_VERSION" /tmp/purrlock-godot/web.zip
-      - name: Export and check the Godot physics playground
+      - name: Export and test the Godot game
         run: |
-          GODOT="/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" GODOT_WEB_TEMPLATE=/tmp/purrlock-godot/web.zip sh tools/build-physics-web.sh
+          GODOT="/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" GODOT_WEB_TEMPLATE=/tmp/purrlock-godot/web.zip sh tools/build-web.sh
           node tools/test-worker.mjs
+          "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path . --import
+          for order in table,chair,cabinet table,cabinet,chair chair,table,cabinet chair,cabinet,table cabinet,chair,table cabinet,table,chair; do
+            "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path . -- --test-furniture --order="$order"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: cloudflare-build

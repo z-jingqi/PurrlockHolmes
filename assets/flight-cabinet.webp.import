@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c6dc1nk2msts5"
-path="res://.godot/imported/wrong.png-d2ba6adda39dcc2dbc3dac1913e553d2.ctex"
+uid="uid://i2g51egxd71m"
+path="res://.godot/imported/flight-cabinet.webp-a2b104f531fd6d7def0e95051b947ec8.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/wrong.png"
-dest_files=["res://.godot/imported/wrong.png-d2ba6adda39dcc2dbc3dac1913e553d2.ctex"]
+source_file="res://assets/flight-cabinet.webp"
+dest_files=["res://.godot/imported/flight-cabinet.webp-a2b104f531fd6d7def0e95051b947ec8.ctex"]
 
 [params]
 

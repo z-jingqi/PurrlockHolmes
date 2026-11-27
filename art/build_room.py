@@ -1,4 +1,4 @@
-"""Build the editable Purrlock Holmes diorama and bake the game views. Blender 4.3+."""
+"""Build the editable Purrlock Holmes diorama. Blender 4.3+."""
 from pathlib import Path
 import bpy, math
 from mathutils import Vector
@@ -88,6 +88,18 @@ for j in range(8):
 for x in [-1.73,1.48]:
     for y in [-1.76,.12]:cyl('Low table leg',(x,y,.46),.12,.72,wood,.16)
 box('Tea table',(-.11,-.82,.89),(3.83,2.53,.22),honey,.22)
+# A low wooden chair with a peach seat, beside the tea table.
+cx, cy = -3.22, -.53
+for dx in [-.46,.46]:
+    for dy in [-.43,.43]:
+        box('Chair leg',(cx+dx,cy+dy,.49),(.15,.15,.89),wood,.042)
+box('Chair seat',(cx,cy,.94),(1.22,1.18,.16),honey,.074)
+box('Chair cushion',(cx,cy-.02,1.07),(1.12,1.02,.17),pink,.105)
+for dx in [-.48,.48]:
+    box('Chair upright',(cx+dx,cy+.46,1.47),(.15,.145,1.15),wood,.048)
+box('Chair back',(cx,cy+.46,1.88),(1.18,.18,.52),honey,.07)
+box('Chair book',(cx+.08,cy-.06,1.20),(.59,.48,.085),mint,.055,-.16)
+box('Chair book label',(cx+.08,cy-.06,1.246),(.27,.19,.013),cream,.019,-.16)
 # Cabinet and accents
 box('Sideboard',(3.84,2.78,.79),(3.20,1.14,1.43),wood,.12)
 box('Sideboard top',(3.84,2.78,1.55),(3.38,1.31,.14),honey)
@@ -181,11 +193,4 @@ sc.render.engine='CYCLES';sc.cycles.samples=36;sc.cycles.use_denoising=False
 sc.render.resolution_x=1500;sc.render.resolution_y=1120;sc.render.resolution_percentage=100
 sc.view_settings.view_transform='AgX';sc.render.image_settings.file_format='PNG'
 sc.view_settings.look='AgX - Medium High Contrast'
-sc.render.filepath=str(ROOT/'assets/room.png')
 bpy.ops.wm.save_as_mainfile(filepath=str(ROOT/'art/room.blend'),compress=True)
-bpy.ops.render.render(write_still=True)
-# Build the map with exact frontmost geometry and no lighting or antialiasing.
-import sys
-sys.path.insert(0,str(ROOT/'art'))
-from bake_pick import bake
-bake(ROOT/'assets/pick.png')

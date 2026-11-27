@@ -1,5 +1,5 @@
 name = "purrlock-holmes"
-main = "./dist/worker.mjs"
+main = "./web/worker.mjs"
 compatibility_date = "2026-11-01"
 workers_dev = true
 
@@ -7,4 +7,4 @@ workers_dev = true
 directory = "./dist/static"
 binding = "ASSETS"
 html_handling = "none"
-run_worker_first = ["/physics/*"]
+run_worker_first = true

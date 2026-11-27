@@ -1,91 +1,28 @@
 # 福尔猫斯 · Purrlock Holmes
 
-**案卷 01：午后客厅。** 拖动画面查看房间，找到并点击全部七件餐具。点中的物品会浮起，沿弧线落入猫爪收纳匣，落下才计数。没有倒计时、三消、相机旋转或视差。
+**午后客厅。** [在网页试玩](https://purrlock-holmes.pineappleq16.workers.dev/)。拖动查看房间，点桌子、椅子和柜子收起家具。物品沿弧线飞入猫爪收纳匣，入匣后计数。失去支撑的小物件受重力和碰撞影响，桌沿毛巾也会落下。点击提示后，目标周围的光线顺时针旋转，目标轻轻呼吸。没有镜头旋转、视差或倒计时。
 
-## Godot / Blender
+## 场景和素材
 
-- 用 **Godot 4.7** 导入 `project.godot`，按 F5。支持鼠标左键和单指拖动/点按。桌面和 iOS 是目标平台，本 Demo 不含各平台安装包，也未验证 iOS 真机。微信小游戏不在本次范围。
-- `art/room.blend` 是可编辑的原创场景。物品在 3D 中建模和摆放，镜头固定。运行时只绘制并平移同一张透视图，不实时渲染场景。
-- `assets/pick.png` 是同机位的无遮挡像素编号图。它用 Blender 中实际几何算最前方物体；被家具盖住的区域不能隔空点到。用 Blender 4.3+ 重建：
+Godot 4.7.2 导入项目后按 F5。原房间固定背景从 Blender 烘焙，保留柔和的灯光；拆出的家具和移动物品使用 3D 模型、刚体和独立支撑关系。毛巾是可变形网格，与桌沿、桌面、地面接触；不与全部小道具做双向碰撞。剩余目标在掉落后检查可点击范围，目标是至少保留 25% 的投影点击轮廓。网页与桌面共用同一个关卡。
 
-  ```sh
-  blender -b --python art/build_room.py
-  ffmpeg -y -i assets/room.png -c:v libwebp -quality 89 assets/room.webp
-  ```
-
-  手动改过 .blend 时，保持镜头和分辨率一致，重新渲染美术图，再运行 `blender -b art/room.blend --python art/bake_pick.py`。
-
-- Godot 自检：先在 Godot 中导入资源，然后运行 `godot --headless --path . -- --test-demo`。
-
-## 浏览器试玩
-
-- [找物主关卡](https://purrlock-holmes.pineappleq16.workers.dev/) 是与 Godot 共用 Blender 烘焙和点击图的轻量 HTML/Canvas 版。
-- [撤桌试玩](https://purrlock-holmes.pineappleq16.workers.dev/physics/) 运行同一个 Godot 物理场景的 Web 导出，不是录像。需要 WebGL 2；没有 WebGL 2 时可看[回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/replay/)。
-
-本地构建找物主关卡（Node 20+）：
+修改 `art/room.blend` 后重出素材：
 
 ```sh
-sh tools/build-web.sh
-python3 -m http.server 8030 -d dist
+blender -b art/room.blend --python art/export_room.py
 ```
 
-打开 `http://localhost:8030`。要检查带实时物理关卡的完整 Worker 路由：
+`art/build_room.py` 可从零重建房间。字体授权见 `game/NotoSansCJK-OFL.txt`。iOS 真机尚未验证。
+
+## 构建和部署
 
 ```sh
+godot --headless --path . --import
+godot --headless --path . -- --test-furniture
 python3 tools/fetch-godot-web-template.py 4.7.2 /tmp/purrlock-web.zip
-GODOT_WEB_TEMPLATE=/tmp/purrlock-web.zip sh tools/build-physics-web.sh
+GODOT_WEB_TEMPLATE=/tmp/purrlock-web.zip sh tools/build-web.sh
 node tools/test-worker.mjs
 npx wrangler dev
 ```
 
-Godot 可执行文件需与模板版本一致。物理场景的中文界面打包了 Noto Sans CJK SC 子集，授权见 `physics/NotoSansCJK-OFL.txt`。
-
-## Cloudflare 自动部署
-
-`.github/workflows/cloudflare.yml` 在推送到 `main` 时先检查并构建网页，再部署到名为 `purrlock-holmes` 的 Cloudflare Worker。也可以在 Actions 手动运行。首次启用在 GitHub 仓库 **Settings → Secrets and variables → Actions** 设置：
-
-- Secret `CLOUDFLARE_API_TOKEN`：用 Cloudflare 的 Workers 部署令牌，权限限定到目标账号；不要上传到 Git 或发送到聊天。
-- Variable `CLOUDFLARE_ACCOUNT_ID`：目标 Cloudflare 账号的 Account ID。
-
-未配置以上两项时，部署步骤会明确失败，不会假装发布成功。
-
-### 收纳动画素材
-
-使用相同的 Blender 镜头渲染无道具房间和七件透明道具后，再打包逐件清除和飞行动画所需的图集：
-
-```sh
-blender -b art/room.blend --python art/render_pickups.py
-python3 art/pack_pickups.py  # 需要 Pillow
-```
-
-可用 `PURR_PICKUP_DIR` 指定中间图输出目录。游戏不会加载整张干净房间，只按实际收集状态叠放各件物品的局部背景。
-
-### 分类提示与干扰道具
-
-收纳匣上方仅显示本关目标类别和已收集数。提示会挑一个未收集目标，显示约三秒的呼吸与顺时针交错光线。点击可交互的干扰道具会短暂左右晃动；固定家具、房间背景、装饰和拖动不触发。
-
-干扰项由 `art/render_wrong.py` 中的名单决定，不是所有场景模型。重新烘焙：
-
-```sh
-blender -b art/room.blend --python art/render_wrong.py
-python3 art/pack_wrong.py  # 需要 Pillow
-```
-
-## Godot：物理试验关卡
-
-用 Godot 打开项目，F5 后点右上角「物理试验」（也可直接运行 `physics/physics_room.tscn`）。先点走矮桌，再点落地的杯子、盘子和叉子。「原版」回到固定透视找物关。网页的「撤桌试玩」入口运行此同一场景；找物主页面仍保持原版。
-
-- 仍然是锁定透视相机。拖动画面时只平移同一张取景画面，不改变相机方向。
-- 桌面支撑移除后，杯盘、叉子、两本册子和橘子有独立刚体、重力、摩擦和碰撞。不同道具材质具有不同表面高光/粗糙度。
-- 落地后会采样每件目标在固定镜头下可点到的投影区域；阈值是 25%，分母是目标未被遮住时的点击代理轮廓，不是精确的渲染像素面积。优先轻推挡路的道具，仍挡住时才把目标滑向经过检验的空位。
-- 毛巾用可变形网格与桌面、桌沿、地面接触。放在桌上时上缘以摩擦锚定模型稳定，外侧受重力下垂；移桌后解除锚点。原型尚未做毛巾与全部小道具之间的双向碰撞。
-- 几何从原 Blender 场景导出，不依赖手工重摆。重建：`blender -b art/room.blend --python art/export_physics.py`。
-
-导入资源后，可跑正常落地 + 强制遮挡回归：
-
-```sh
-godot --headless --path . res://physics/physics_room.tscn -- --test-physics --test-covered
-godot --headless --path . -- --test-demo
-```
-
-[撤桌试验回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/replay/) 采样 Godot 的刚体和毛巾模拟，由 Blender 重渲染，与实时试玩独立。
+网页版需要 WebGL 2。GitHub Actions 检查六种家具收纳顺序并构建同一关卡；Cloudflare 自动发布需要仓库 Actions Secret `CLOUDFLARE_API_TOKEN` 和 Variable `CLOUDFLARE_ACCOUNT_ID`。

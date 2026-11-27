@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cavqnatvs7sxx"
-path="res://.godot/imported/pickups.webp-288ab32b9d65da410c0f3083f8beb930.ctex"
+uid="uid://3dtsmqpgg7xv"
+path="res://.godot/imported/flight-table.webp-c7397f24ba34741edc796a82bef89de1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/pickups.webp"
-dest_files=["res://.godot/imported/pickups.webp-288ab32b9d65da410c0f3083f8beb930.ctex"]
+source_file="res://assets/flight-table.webp"
+dest_files=["res://.godot/imported/flight-table.webp-c7397f24ba34741edc796a82bef89de1.ctex"]
 
 [params]
 

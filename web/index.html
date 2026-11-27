@@ -2,28 +2,44 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="福尔猫斯：收起家具，看看放在上面的东西如何落下。">
 <title>福尔猫斯 · 午后客厅</title>
-<meta name="description" content="福尔猫斯：一间午后的客厅，七件等你发现的餐具。">
-<link rel="stylesheet" href="./style.css?v=3">
+<style>
+:root{color-scheme:light}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;overflow:hidden;background:#f7eedf}
+#canvas{display:block;width:100%;height:100%;touch-action:none;outline:none}
+#loading{position:fixed;inset:0;display:grid;place-items:center;padding:24px;background:#f7eedf;color:#51382f;font:16px system-ui,sans-serif}
+.card{width:min(100%,400px);padding:30px;border:1px solid #e0c9ad;border-radius:20px;background:#fff9ef;text-align:center}
+small{letter-spacing:.16em;color:#826149}
+h1{margin:8px 0 12px;font-size:28px}
+p{line-height:1.55}
+progress{width:100%;accent-color:#ad7057}
+a{color:#774a35;margin:0 8px}
+</style>
 </head>
 <body>
-<main class="case">
-<header>
-  <div><div class="eyebrow">PURRLOCK HOLMES <span>·</span> CASE 01</div><h1>福尔猫斯</h1></div>
-  <div class="chapter"><b>午后客厅</b><small>THE TEA TABLE CASE</small><a class="physics-link" href="/physics/">撤桌试玩 ↗</a></div>
-</header>
-<section class="stage" aria-label="可拖动的客厅场景">
- <canvas id="room" aria-label="拖动画面，点击你找到的餐具"></canvas>
- <div class="guide">拖动看房间 <i></i> 点按收集</div>
- <div class="victory" id="victory" hidden><div>✦</div><strong>餐具找齐了！</strong><button id="again" type="button">再玩一局</button></div>
- <div class="loading" id="loading" role="status">正在打开案卷…</div>
-</section>
-<footer>
- <div class="box"><div class="count"><span>餐具</span><strong id="count" aria-live="polite">0/7</strong></div><img id="box" src="./assets/paw-box.svg" alt="猫爪收纳匣" width="112" height="78"></div>
- <button id="hint" type="button" disabled><span aria-hidden="true">✦</span> 提示</button>
-</footer>
-<canvas id="flight-layer" aria-hidden="true"></canvas>
-</main>
-<script defer src="./game.js?v=4"></script>
-</body></html>
+<canvas id="canvas" aria-label="午后客厅。拖动查看房间，点按收起家具。"></canvas>
+<div id="loading"><div class="card"><small>PURRLOCK HOLMES</small><h1>午后客厅</h1>
+<p id="status" role="status">正在打开案卷…</p><progress id="progress" aria-label="加载进度"></progress>
+</div></div>
+<noscript>开启 JavaScript 后才能游玩。</noscript>
+<script src="$GODOT_URL"></script>
+<script>
+const progress = document.getElementById("progress");
+const status = document.getElementById("status");
+const engine = new Engine($GODOT_CONFIG);
+const fail = (error) => {
+  console.error(error);
+  status.textContent = "启动失败。请刷新，或用支持 WebGL 2 的浏览器打开。";
+  progress.remove();
+};
+const missing = Engine.getMissingFeatures({threads:$GODOT_THREADS_ENABLED});
+if (missing.length) fail(missing.join(", "));
+else engine.startGame({onProgress(current, total) {
+  if (total > 0) { progress.max = total; progress.value = current; }
+}}).then(() => document.getElementById("loading").remove(), fail);
+</script>
+</body>
+</html>
