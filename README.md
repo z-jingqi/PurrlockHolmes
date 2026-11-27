@@ -19,14 +19,26 @@
 
 ## 浏览器试玩
 
-网页是与 Godot 共用 Blender 烘焙和点击图的轻量 HTML/Canvas 版，不是 Godot Web 导出。Node 20+：
+- [找物主关卡](https://purrlock-holmes.pineappleq16.workers.dev/) 是与 Godot 共用 Blender 烘焙和点击图的轻量 HTML/Canvas 版。
+- [撤桌试玩](https://purrlock-holmes.pineappleq16.workers.dev/physics/) 运行同一个 Godot 物理场景的 Web 导出，不是录像。需要 WebGL 2；没有 WebGL 2 时可看[回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/replay/)。
+
+本地构建找物主关卡（Node 20+）：
 
 ```sh
 sh tools/build-web.sh
 python3 -m http.server 8030 -d dist
 ```
 
-打开 `http://localhost:8030`。
+打开 `http://localhost:8030`。要检查带实时物理关卡的完整 Worker 路由：
+
+```sh
+python3 tools/fetch-godot-web-template.py 4.7.2 /tmp/purrlock-web.zip
+GODOT_WEB_TEMPLATE=/tmp/purrlock-web.zip sh tools/build-physics-web.sh
+node tools/test-worker.mjs
+npx wrangler dev
+```
+
+Godot 可执行文件需与模板版本一致。物理场景的中文界面打包了 Noto Sans CJK SC 子集，授权见 `physics/NotoSansCJK-OFL.txt`。
 
 ## Cloudflare 自动部署
 
@@ -61,7 +73,7 @@ python3 art/pack_wrong.py  # 需要 Pillow
 
 ## Godot：物理试验关卡
 
-用 Godot 打开项目，F5 后点右上角「物理试验」（也可直接运行 `physics/physics_room.tscn`）。先点走矮桌，再点落地的杯子、盘子和叉子。「原版」回到固定透视找物关。网页版保持原版，不承载这个原生 3D 试验。
+用 Godot 打开项目，F5 后点右上角「物理试验」（也可直接运行 `physics/physics_room.tscn`）。先点走矮桌，再点落地的杯子、盘子和叉子。「原版」回到固定透视找物关。网页的「撤桌试玩」入口运行此同一场景；找物主页面仍保持原版。
 
 - 仍然是锁定透视相机。拖动画面时只平移同一张取景画面，不改变相机方向。
 - 桌面支撑移除后，杯盘、叉子、两本册子和橘子有独立刚体、重力、摩擦和碰撞。不同道具材质具有不同表面高光/粗糙度。
@@ -76,4 +88,4 @@ godot --headless --path . res://physics/physics_room.tscn -- --test-physics --te
 godot --headless --path . -- --test-demo
 ```
 
-网页也可以在 [撤桌试验回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/) 查看效果。回放采样 Godot 的刚体和毛巾模拟，用 Blender 重渲染，不是 Godot Web 导出或实时网页关卡。
+[撤桌试验回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/replay/) 采样 Godot 的刚体和毛巾模拟，由 Blender 重渲染，与实时试玩独立。

@@ -12,6 +12,7 @@ const RENDER_SIZE := Vector2(1320, 980)
 const TOP := 74.0
 const FOOTER := 92.0
 const BOX := preload("res://assets/paw-box.svg")
+const UI_FONT := preload("res://physics/ui-zh.otf")
 
 var view: SubViewport
 var world: Node3D
@@ -203,17 +204,12 @@ func _material_detail(node: MeshInstance3D,key: String) -> void:
 		elif key=="table": m.roughness=.72
 		node.set_surface_override_material(i,m)
 
-func _font()->SystemFont:
-	var f:=SystemFont.new()
-	f.font_names=PackedStringArray(["PingFang SC","Microsoft YaHei","Noto Sans CJK SC","Arial"])
-	return f
-
 func _label(s: String,sz: int,pos: Vector2) -> Label:
 	var l:=Label.new()
 	l.text=s
 	l.position=pos
 	l.mouse_filter=Control.MOUSE_FILTER_IGNORE
-	l.add_theme_font_override("font",_font())
+	l.add_theme_font_override("font",UI_FONT)
 	l.add_theme_font_size_override("font_size",sz)
 	l.add_theme_color_override("font_color",Color("#51382f"))
 	add_child(l)
@@ -222,7 +218,7 @@ func _label(s: String,sz: int,pos: Vector2) -> Label:
 func _button(s: String, callback: Callable)->Button:
 	var b:=Button.new()
 	b.text=s
-	b.add_theme_font_override("font",_font())
+	b.add_theme_font_override("font",UI_FONT)
 	b.pressed.connect(callback)
 	add_child(b)
 	return b
@@ -232,7 +228,7 @@ func _build_ui() -> void:
 	caption=_label("先点走桌子，再收起落地的餐具。",14,Vector2(19,45))
 	progress=_label("桌面四件   0/4",17,Vector2.ZERO)
 	var restart:=_button("重来",func():get_tree().reload_current_scene())
-	var back:=_button("原版",func():get_tree().change_scene_to_file("res://main.tscn"))
+	var back:=_button("原版",_back)
 	var fit:=func():
 		_clamp_pan()
 		progress.position=Vector2(maxf(0,(size.x-progress.get_minimum_size().x)*.5),size.y-FOOTER+3)
@@ -241,6 +237,12 @@ func _build_ui() -> void:
 		queue_redraw()
 	resized.connect(fit)
 	fit.call()
+
+func _back() -> void:
+	if OS.has_feature("web"):
+		JavaScriptBridge.get_interface("location").assign("/")
+	else:
+		get_tree().change_scene_to_file("res://main.tscn")
 
 func _refresh_caption() -> void:
 	progress.text="桌面四件   %d/4"%taken.size()

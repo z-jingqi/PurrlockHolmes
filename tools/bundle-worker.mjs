@@ -19,10 +19,30 @@ const types = {
 };
 const files = Object.fromEntries(Object.entries(types).map(([p,t]) => [p,[t,readFileSync("dist"+p).toString("base64")]]));
 writeFileSync("dist/worker.mjs", `const files=${JSON.stringify(files)};
-export default {fetch(req){
+export default {async fetch(req, env){
   if(req.method!=="GET"&&req.method!=="HEAD")return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
   const route=new URL(req.url).pathname;
-  const p=route==="/"?"/index.html":route==="/physics/"||route==="/physics"?"/physics.html":route;
+  if(route==="/physics")return Response.redirect(new URL("/physics/",req.url),308);
+  if(env?.ASSETS&&route==="/physics/"){
+    const page=await env.ASSETS.fetch(new Request(new URL("/physics/index.html",req.url),{method:req.method}));
+    const headers=new Headers(page.headers);
+    headers.set("Cache-Control","no-cache");
+    headers.set("X-Content-Type-Options","nosniff");
+    headers.set("Content-Security-Policy","default-src 'none'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; base-uri 'none'; form-action 'none'");
+    return new Response(page.body,{status:page.status,headers});
+  }
+  if(env?.ASSETS&&route==="/physics/engine.wasm"){
+    const input=await env.ASSETS.fetch(new Request(new URL("/physics/engine.wasm.gz",req.url),{method:req.method,headers:{"Accept-Encoding":"identity"}}));
+    if(!input.ok)return input;
+    const headers=new Headers(input.headers);
+    headers.set("Content-Type","application/wasm");
+    headers.set("Content-Encoding","gzip");
+    headers.delete("Accept-Ranges");
+    headers.set("X-Content-Type-Options","nosniff");
+    return new Response(input.body,{status:input.status,headers,encodeBody:"manual"});
+  }
+  if(env?.ASSETS&&route.startsWith("/physics/")&&route!=="/physics/replay/")return env.ASSETS.fetch(req);
+  const p=route==="/"?"/index.html":route==="/physics/replay/"||route==="/physics/"?"/physics.html":route;
   const file=Object.hasOwn(files,p)?files[p]:null;
   if(!file)return new Response("Not found",{status:404});
   const bytes=Uint8Array.from(atob(file[1]),c=>c.charCodeAt(0));
