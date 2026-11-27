@@ -3,6 +3,7 @@ extends Control
 const MODEL := preload("res://assets/room.glb")
 const BACKDROP := preload("res://assets/room.webp")
 const CLOTH_SCRIPT := preload("res://game/towel.gd")
+const PROP_DYNAMICS := preload("res://game/prop_dynamics.gd")
 const BOX := preload("res://assets/paw-box.svg")
 const HINT_RAY := preload("res://assets/hint-ray.png")
 const UI_FONT := preload("res://game/ui-zh.otf")
@@ -26,19 +27,25 @@ const EXPOSURE := .25
 const SUPPORTS := {
 	"table":["cup","plate","fork","book","notebook","orange"],
 	"chair":["chair_book"],
-	"cabinet":["bowl","plant","cab_books"]
+	"cabinet":["bowl","plant","cab_book0","cab_book1","cab_book2","cab_book3","cab_stop0","cab_stop1"]
 }
+# Each entry: model center, collision extents, kg, contact/aerodynamic preset.
 const PROPS := {
-	"cup": [Vector3(-.79,1.23,.39),Vector3(.65,.43,.52),.24],
-	"plate": [Vector3(.08,1.10,1.30),Vector3(.99,.19,.99),.32],
-	"fork": [Vector3(.70,1.067,.73),Vector3(.45,.050,.71),.12],
-	"book": [Vector3(-1.34,1.052,1.32),Vector3(.82,.09,.71),.28],
-	"notebook": [Vector3(.83,1.055,0),Vector3(.80,.09,.58),.25],
-	"orange": [Vector3(.90,1.164,1.46),Vector3(.36,.34,.36),.16],
-	"chair_book": [Vector3(-3.14,1.20,.59),Vector3(.59,.084,.48),.25],
-	"bowl": [Vector3(3.14,1.83,-2.39),Vector3(.74,.41,.74),.38],
-	"plant": [Vector3(5.12,1.90,-2.86),Vector3(.65,.53,.63),.54],
-	"cab_books": [Vector3(4.04,1.85,-2.79),Vector3(1.48,.45,.47),.45]
+	"cup": [Vector3(-.79,1.23,.39),Vector3(.60,.43,.52),.31,"ceramic"],
+	"plate": [Vector3(.08,1.10,1.30),Vector3(.99,.19,.99),.48,"ceramic"],
+	"fork": [Vector3(.70,1.067,.73),Vector3(.45,.050,.71),.07,"steel"],
+	"book": [Vector3(-1.34,1.052,1.32),Vector3(.76,.09,.55),.31,"paper"],
+	"notebook": [Vector3(.83,1.055,0),Vector3(.73,.09,.49),.105,"paper"],
+	"orange": [Vector3(.90,1.164,1.46),Vector3(.36,.34,.36),.155,"fruit"],
+	"chair_book": [Vector3(-3.14,1.20,.59),Vector3(.59,.084,.48),.22,"paper"],
+	"bowl": [Vector3(3.14,1.83,-2.39),Vector3(.74,.41,.74),.43,"ceramic"],
+	"plant": [Vector3(5.12,1.90,-2.86),Vector3(.65,.53,.63),.83,"plant"],
+	"cab_book0": [Vector3(3.57,1.855,-2.78),Vector3(.14,.47,.49),.21,"paper"],
+	"cab_book1": [Vector3(3.75,1.835,-2.78),Vector3(.14,.43,.49),.16,"paper"],
+	"cab_book2": [Vector3(3.93,1.815,-2.78),Vector3(.14,.39,.49),.12,"paper"],
+	"cab_book3": [Vector3(4.11,1.795,-2.78),Vector3(.14,.35,.49),.10,"paper"],
+	"cab_stop0": [Vector3(3.31,1.75,-2.69),Vector3(.26,.28,.26),.24,"wood"],
+	"cab_stop1": [Vector3(4.66,1.75,-2.69),Vector3(.26,.28,.26),.24,"wood"],
 }
 const DECOYS := {
 	"car":[Vector3(3.40,.32,1.80),Vector3(.94,.61,.65)],
@@ -48,6 +55,9 @@ const DECOYS := {
 }
 
 var view: SubViewport
+var live_layer: Node2D
+var hud_layer: Node2D
+var live_was_active := true
 var world: Node3D
 var camera: Camera3D
 var cloth: MeshInstance3D
@@ -111,9 +121,20 @@ func _build_world() -> void:
 	view.size=Vector2i(RENDER_SIZE)
 	view.own_world_3d=true
 	view.transparent_bg=true
-	view.render_target_update_mode=SubViewport.UPDATE_ALWAYS
-	view.msaa_3d=Viewport.MSAA_2X
+	view.render_target_update_mode=SubViewport.UPDATE_ONCE
+	view.msaa_3d=Viewport.MSAA_4X
 	add_child(view)
+	# Transparent SubViewport textures already have premultiplied edges.
+	# Blending them as a regular texture darkens the antialiased silhouette.
+	live_layer=Node2D.new()
+	var blend:=CanvasItemMaterial.new()
+	blend.blend_mode=CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	live_layer.material=blend
+	live_layer.draw.connect(_draw_live)
+	add_child(live_layer)
+	hud_layer=Node2D.new()
+	hud_layer.draw.connect(_draw_hud)
+	add_child(hud_layer)
 	world=Node3D.new()
 	view.add_child(world)
 	var env:=WorldEnvironment.new()
@@ -199,18 +220,15 @@ func _add_prop(key: String) -> void:
 	body.mass=config[2]
 	body.collision_mask=CLOSED|32
 	body.freeze=true
-	body.linear_damp=1.8
-	body.angular_damp=3.4
 	body.continuous_cd=true
-	var material:=PhysicsMaterial.new()
-	material.friction=.67 if "book" in key else .43
-	material.bounce=.21 if key=="orange" else .035
-	body.physics_material_override=material
+	PROP_DYNAMICS.configure(body,config[3])
 	_register(key,body,config[0],ITEMS)
 	match key:
 		"cup": _add_cylinder(body,.286,.43,Vector3(-.058,-.016,0))
 		"plate": _add_cylinder(body,.49,.18)
 		"bowl": _add_cylinder(body,.36,.40)
+		"plant": _add_cylinder(body,.295,.53)
+		"cab_stop0","cab_stop1": _add_cylinder(body,.13,.28)
 		"orange": _add_sphere(body,.17)
 		"fork":
 			_add_box(body,Vector3(.095,.052,.55),Vector3(-.093,0,.23),-.50)
@@ -264,6 +282,7 @@ func _reparent_meshes(node: Node) -> void:
 		var key := String(node.name).get_slice("__",0)
 		if groups.has(key):
 			node.reparent(visuals[key],true)
+			node.visible=key not in TARGETS
 			_material_detail(node,key)
 
 func _material_detail(node: MeshInstance3D,key: String) -> void:
@@ -301,7 +320,7 @@ func _move(id: int,at: Vector2) -> void:
 	if dragged:
 		pan=start_pan+at-start
 		_clamp_pan()
-		queue_redraw()
+		_redraw()
 
 func _end(id: int,at: Vector2,canceled: bool) -> void:
 	if pointer!=id:return
@@ -379,7 +398,7 @@ func _refresh_caption() -> void:
 	progress.position=Vector2(maxf(0.0,(size.x-progress.get_minimum_size().x)*.5),size.y-FOOTER+6)
 	caption.text="家具收齐了！" if taken.size()==TARGETS.size() else "午后客厅 · 拖动看房间，点按收集"
 	hint_button.disabled=taken.size()+flights.size()>=TARGETS.size()
-	queue_redraw()
+	_redraw()
 
 func _field() -> Rect2:
 	return Rect2(0,TOP,size.x,maxf(1.0,size.y-TOP-FOOTER))
@@ -400,19 +419,44 @@ func _clamp_pan() -> void:
 func _box_center() -> Vector2:
 	return Vector2(size.x*.5,size.y-34)
 
+func _redraw() -> void:
+	queue_redraw()
+	if live_layer:live_layer.queue_redraw()
+	if hud_layer:hud_layer.queue_redraw()
+
 func _draw() -> void:
 	if not view or not camera:return
 	var r:=Rect2(_origin(),RENDER_SIZE*_scale())
 	draw_texture_rect(BACKDROP,r,false)
 	if shadow:_draw_shadows()
 	if not hint_key.is_empty():_draw_hint()
-	draw_texture_rect(view.get_texture(),r,false)
-	draw_rect(Rect2(0,0,size.x,TOP),Color("#fff7e9"))
-	draw_rect(Rect2(0,size.y-FOOTER,size.x,FOOTER),Color("#fff7e9"))
-	draw_line(Vector2(0,TOP),Vector2(size.x,TOP),Color("#dec3a8"))
-	draw_line(Vector2(0,size.y-FOOTER),Vector2(size.x,size.y-FOOTER),Color("#dec3a8"))
+	# The actual furniture shell uses the exact same Blender texture before
+	# and during the flight; its 3D body stays intact for contact/ray tests.
+	for key in TARGETS:
+		if taken.has(key) or flights.has(key) or not sprites.has(key):continue
+		var sprite: AtlasTexture=sprites[key]
+		var scale:=_scale()
+		var zoom:=_hint_zoom(key)
+		var center:=r.position+sprite.region.get_center()*scale
+		var dims:=sprite.get_size()*scale*zoom
+		draw_texture_rect(sprite,Rect2(center-dims*.5,dims),false)
+	if shadow:_draw_prop_shadows()
+
+func _hint_zoom(key: String) -> float:
+	if key!=hint_key:return 1.0
+	var fade:=minf(hint_age/.12,1.0)*(1.0-smoothstep(HINT_SECONDS-.32,HINT_SECONDS,hint_age))
+	return 1.0+(.5+.5*sin(hint_age*TAU*1.12))*.07*fade
+
+func _draw_live() -> void:
+	live_layer.draw_texture_rect(view.get_texture(),Rect2(_origin(),RENDER_SIZE*_scale()),false)
+
+func _draw_hud() -> void:
+	hud_layer.draw_rect(Rect2(0,0,size.x,TOP),Color("#fff7e9"))
+	hud_layer.draw_rect(Rect2(0,size.y-FOOTER,size.x,FOOTER),Color("#fff7e9"))
+	hud_layer.draw_line(Vector2(0,TOP),Vector2(size.x,TOP),Color("#dec3a8"))
+	hud_layer.draw_line(Vector2(0,size.y-FOOTER),Vector2(size.x,size.y-FOOTER),Color("#dec3a8"))
 	var box_size:=Vector2(92,64)*(1.0+bump*.10)
-	draw_texture_rect(BOX,Rect2(_box_center()-box_size*.5,box_size),false)
+	hud_layer.draw_texture_rect(BOX,Rect2(_box_center()-box_size*.5,box_size),false)
 	for key in flights:_draw_flight(key)
 
 func _draw_shadows() -> void:
@@ -425,15 +469,25 @@ func _draw_shadows() -> void:
 		var p:=_origin()+camera.unproject_position(center)*f
 		var d: Vector2=spots[key]*f
 		draw_texture_rect(shadow,Rect2(p-d*.5,d),false,Color(1,1,1,.65))
+
+func _draw_prop_shadows() -> void:
+	var f:=_scale()
+	var origin:=_origin()
 	for key in PROPS:
 		var body:=groups[key] as RigidBody3D
-		if body.freeze:continue
-		var center:=body.position
-		center.y=.142
-		var p:=_origin()+camera.unproject_position(center)*f
 		var config: Array=PROPS[key]
-		var d:=Vector2(config[1].x*84,config[1].z*42)*f
-		draw_texture_rect(shadow,Rect2(p-d*.5,d),false,Color(1,1,1,.44))
+		var center:=body.position
+		var height: float=config[1].y*.5
+		var opacity:=.38
+		if body.freeze:
+			center.y-=height
+		else:
+			var rug:=Rect2(-3.785,-1.52,6.65,5.18)
+			center.y=.142 if rug.has_point(Vector2(center.x,center.z)) else .062
+			opacity*=lerpf(.35,1.0,1.0-clampf(body.position.y-center.y-height,0.0,1.0))
+		var p:=origin+camera.unproject_position(center)*f
+		var d:=Vector2(config[1].x*76,config[1].z*44)*f
+		draw_texture_rect(shadow,Rect2(p-d*.5,d),false,Color(1,1,1,opacity))
 
 func _draw_flight(key: String) -> void:
 	var flight: Dictionary=flights[key]
@@ -448,17 +502,15 @@ func _draw_flight(key: String) -> void:
 	if age<LIFT:
 		t=clampf(age/LIFT,0.0,1.0)
 		p=source.lerp(lift,1.0-pow(1.0-t,3.0))
-		zoom=lerpf(1.0,1.12,t)
+		zoom=lerpf(float(flight.start_zoom),1.12,t)
 	else:
 		t=clampf((age-LIFT)/(DURATION-LIFT),0.0,1.0)
 		p=lift.bezier_interpolate(lift+Vector2((aperture.x-lift.x)*.26,-40),aperture+Vector2((lift.x-aperture.x)*.26,-73),aperture,t*t*(3.0-2.0*t))
 		zoom=lerpf(1.12,.12,t*t)
 	var d:=sprite.get_size()*float(flight.factor)*zoom
-	draw_texture_rect(sprite,Rect2(p-d*.5,d),false,Color(1,1,1,1.0-smoothstep(.83,1.0,t) if age>=LIFT else 1.0))
+	hud_layer.draw_texture_rect(sprite,Rect2(p-d*.5,d),false,Color(1,1,1,1.0-smoothstep(.83,1.0,t) if age>=LIFT else 1.0))
 
 func _hint_target() -> void:
-	if not hint_key.is_empty():
-		visuals[hint_key].scale=Vector3.ONE
 	hint_key=""
 	var origin:=_origin()
 	var f:=_scale()
@@ -479,7 +531,7 @@ func _hint_target() -> void:
 	if not _field().grow(-minf(44.0,_field().size.y*.45)).has_point(wanted):
 		pan+=_field().get_center()-wanted
 		_clamp_pan()
-	queue_redraw()
+	_redraw()
 
 func _draw_hint() -> void:
 	var a:=minf(hint_age/.12,1.0)*(1.0-smoothstep(HINT_SECONDS-.32,HINT_SECONDS,hint_age))
@@ -520,6 +572,7 @@ func _pick_scene(pixel: Vector2) -> void:
 func _take(key: String) -> void:
 	if flights.has(key) or taken.has(key):return
 	var body:=groups[key] as StaticBody3D
+	var start_zoom:=_hint_zoom(key)
 	if hint_key==key:hint_key=""
 	body.collision_layer=0
 	body.collision_mask=0
@@ -527,7 +580,7 @@ func _take(key: String) -> void:
 		if child is CollisionShape3D:child.set_deferred("disabled",true)
 	body.hide()
 	var sprite: AtlasTexture=sprites[key]
-	flights[key]={"age":0.0,"source":_origin()+sprite.region.get_center()*_scale(),"factor":_scale()}
+	flights[key]={"age":0.0,"source":_origin()+sprite.region.get_center()*_scale(),"factor":_scale(),"start_zoom":start_zoom}
 	for held in SUPPORTS[key]:
 		var prop:=groups[held] as RigidBody3D
 		prop.freeze=false
@@ -539,13 +592,7 @@ func _take(key: String) -> void:
 func _process(dt: float) -> void:
 	if not hint_key.is_empty():
 		hint_age+=dt
-		if hint_age>=HINT_SECONDS:
-			visuals[hint_key].scale=Vector3.ONE
-			hint_key=""
-		else:
-			var a:=minf(hint_age/.12,1.0)*(1.0-smoothstep(HINT_SECONDS-.32,HINT_SECONDS,hint_age))
-			var breath:=1.0+(.5+.5*sin(hint_age*TAU*1.12))*.07*a
-			visuals[hint_key].scale=Vector3.ONE*breath
+		if hint_age>=HINT_SECONDS:hint_key=""
 	for key in flights.keys():
 		flights[key].age+=dt
 		if flights[key].age>=DURATION:
@@ -553,13 +600,14 @@ func _process(dt: float) -> void:
 			taken[key]=true
 			bump=1.0
 			_refresh_caption()
+	if not shakes.is_empty():view.render_target_update_mode=SubViewport.UPDATE_ONCE
 	for key in shakes.keys():
 		shakes[key]+=dt
 		var age: float=shakes[key]
 		visuals[key].position.x=sin(age*TAU*13.0)*.085*maxf(0.0,1.0-age/.28)
 		if age>=.28:shakes.erase(key)
 	bump=move_toward(bump,0.0,dt*3.7)
-	queue_redraw()
+	_redraw()
 
 func _coverage(key: String) -> Dictionary:
 	var body:=groups[key] as StaticBody3D
@@ -604,7 +652,14 @@ func _audit_furniture() -> void:
 
 func _physics_process(dt: float) -> void:
 	ticks+=1
-	cloth.advance(dt)
+	var active: bool=cloth.advance(dt)
+	for key in PROPS:
+		var body:=groups[key] as RigidBody3D
+		if not body.freeze and not body.sleeping:
+			active=true
+			PROP_DYNAMICS.apply_air_drag(body,PROPS[key][1],PROPS[key][3])
+	if active or live_was_active:view.render_target_update_mode=SubViewport.UPDATE_ONCE
+	live_was_active=active
 	if pending_tap.x>=0:
 		_pick_scene(pending_tap)
 		pending_tap=Vector2(-1,-1)
@@ -659,6 +714,11 @@ func _test_frame() -> void:
 			for future in test_order.slice(i+1):
 				for prop in SUPPORTS[future]:
 					_test_assert(groups[prop].freeze,"Removing one support cannot release "+prop)
+		if key=="table" and ticks==phase+18:
+			var fork_speed: float=-groups.fork.linear_velocity.y
+			var paper_speed: float=-groups.notebook.linear_velocity.y
+			_test_assert(fork_speed>paper_speed+.17 and paper_speed>1.0,"Fork and notebook should not share identical air speed")
+			print("FURNITURE_TEST in_air_fork=",fork_speed," in_air_notebook=",paper_speed)
 		if ticks==phase+117:
 			_test_assert(taken.has(key),"Flight did not finish: "+key)
 			var heights: Dictionary={}

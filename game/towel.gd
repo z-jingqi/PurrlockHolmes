@@ -51,9 +51,9 @@ func release_support() -> void:
 	supported = false
 	elapsed = 0.0
 
-func advance(dt: float) -> void:
+func advance(dt: float) -> bool:
 	elapsed += dt
-	if elapsed > (1.4 if supported else 2.6):return
+	if elapsed > (1.4 if supported else 2.6):return false
 	var step := minf(dt, 1.0/30.0)
 	for k in range(points.size()):
 		if supported and k < COLS:
@@ -61,7 +61,9 @@ func advance(dt: float) -> void:
 			previous[k]=points[k]
 			continue
 		var p := points[k]
-		points[k] += (p-previous[k])*.973 + Vector3(0,-9.81*step*step,0)
+		var momentum:=p-previous[k]
+		# Fabric catches more air than a rigid prop, with drag increasing with speed.
+		points[k] += momentum*(exp(-.9*step)/(1.0+momentum.length()*2.2)) + Vector3(0,-9.81*step*step,0)
 		previous[k] = p
 	for it in range(7):
 		for l in links:
@@ -84,6 +86,7 @@ func advance(dt: float) -> void:
 				else: p.z=EDGE+.014
 			points[k]=p
 	update_mesh()
+	return true
 
 func update_mesh() -> void:
 	bounds=AABB(points[0],Vector3.ZERO)

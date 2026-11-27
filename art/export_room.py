@@ -2,6 +2,7 @@
 from pathlib import Path
 import math
 import re
+import sys
 import bpy
 from bpy_extras.object_utils import world_to_camera_view
 
@@ -30,8 +31,12 @@ for obj in scene.objects:
             x = (obj.matrix_world @ point).x
         if x > 4.:
             key = 'plant'
-    if base in {'Bookend','Little book'}:
-        key = 'cab_books'
+    if base == 'Little book':
+        index = round((obj.location.x - 3.57) / .18)
+        key = f'cab_book{index}'
+        obj.location.z = 1.62 + (.47 - index*.04)*.5
+    if base == 'Bookend':
+        key = f'cab_stop{int(obj.location.x > 4.)}'
     if base == 'Wooden toy block':
         key = 'blocks' if obj.location.x > 0 else 'block'
     if base == 'Folded linen':
@@ -39,37 +44,40 @@ for obj in scene.objects:
     if key and obj.type in {'MESH','CURVE'}:
         grouped[obj] = (key,base)
 
-# The clean plate retains the original AgX render and the stationary room, not the furniture.
-# Keep the original camera aspect and slightly lower sample noise with denoising.
-scene.render.resolution_x = 1200
-scene.render.resolution_y = 896
-scene.render.resolution_percentage = 100
-scene.render.threads_mode = 'FIXED'
-scene.render.threads = 8
-scene.cycles.samples = 24
-scene.cycles.use_denoising = False
-scene.render.image_settings.file_format = 'WEBP'
-scene.render.image_settings.quality = 91
-for obj in [*grouped, *skip]:
-    obj.hide_render=True
-scene.render.filepath = str(out/'room.webp')
-bpy.ops.render.render(write_still=True)
-
-# Bake isolated sprites for the original lift-and-arc animation.
-static = [o for o in scene.objects if o.type in {'MESH','CURVE'} and o not in grouped]
-for obj in static: obj.hide_render=True
-scene.render.film_transparent = True
-scene.render.image_settings.color_mode = 'RGBA'
-scene.cycles.samples = 16
-for target in ['table','chair','cabinet']:
-    current = [obj for obj,(key,name) in grouped.items() if key==target]
-    for obj in current: obj.hide_render=False
-    scene.render.filepath = str(out/f'flight-{target}.webp')
+if "--models-only" not in sys.argv:
+    # The clean plate retains the original AgX render and the stationary room, not the furniture.
+    # Keep the original camera aspect and slightly lower sample noise with denoising.
+    scene.render.resolution_x = 1200
+    scene.render.resolution_y = 896
+    scene.render.resolution_percentage = 100
+    scene.render.threads_mode = 'FIXED'
+    scene.render.threads = 8
+    scene.cycles.samples = 24
+    scene.cycles.use_denoising = False
+    scene.render.image_settings.file_format = 'WEBP'
+    scene.render.image_settings.quality = 91
+    for obj in [*grouped, *skip]:
+        obj.hide_render=True
+    scene.render.filepath = str(out/'room.webp')
     bpy.ops.render.render(write_still=True)
-    for obj in current: obj.hide_render=True
 
+    # Bake isolated sprites for the original lift-and-arc animation.
+    static = [o for o in scene.objects if o.type in {'MESH','CURVE'} and o not in grouped]
+    for obj in static: obj.hide_render=True
+    scene.render.film_transparent = True
+    scene.render.image_settings.color_mode = 'RGBA'
+    scene.cycles.samples = 16
+    for target in ['table','chair','cabinet']:
+        current = [obj for obj,(key,name) in grouped.items() if key==target]
+        for obj in current: obj.hide_render=False
+        scene.render.filepath = str(out/f'flight-{target}.webp')
+        bpy.ops.render.render(write_still=True)
+        for obj in current: obj.hide_render=True
+
+bpy.context.view_layer.update()
 bpy.ops.object.select_all(action='DESELECT')
 for obj,(key,name) in grouped.items():
+    if key in {"table","chair","cabinet"}:continue # baked furniture, collision is kept in Godot
     for mod in obj.modifiers:
         if mod.type=='BEVEL':mod.segments=2
     transform = obj.matrix_world.copy()
