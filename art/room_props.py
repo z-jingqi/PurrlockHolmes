@@ -78,14 +78,17 @@ class RoomProps(Studio):
         verts=[tuple(point(i/(rows-1),-1+2*j/(cols-1))) for i in range(rows) for j in range(cols)]
         faces=[(i*cols+j,(i+1)*cols+j,(i+1)*cols+j+1,i*cols+j+1) for i in range(rows-1) for j in range(cols-1)]
         blade=self.mesh(name,verts,faces,mat)
+        blade["leaf_span"]=length
         thick=blade.modifiers.new("Thin living blade","SOLIDIFY");thick.thickness=.008
+        moving=[blade]
         q=[tuple(point(t,0)+Vector((0,0,.006))) for t in (0,.14,.36,.59,.79,.93)]
-        self.tube("Leaf midrib",q,[.012,.010,.008,.006,.004,.0015],self.vein,axis=(0,0,1),samples=2,sections=8)
+        moving.append(self.tube("Leaf midrib",q,[.012,.010,.008,.006,.004,.0015],self.vein,axis=(0,0,1),samples=2,sections=8))
         if not lance:
             for t in (.33,.55,.72):
                 for sign in (-1,1):
                     vein=[tuple(point(t+u*.14,sign*u*.77)+Vector((0,0,.004))) for u in (0,.34,.68,1)]
-                    self.tube("Subtle branching vein",vein,[.004,.003,.002,.001],self.vein,axis=(0,0,1),samples=2,sections=8)
+                    moving.append(self.tube("Subtle branching vein",vein,[.004,.003,.002,.001],self.vein,axis=(0,0,1),samples=2,sections=8))
+        return moving
 
     def plant(self, lance):
         self.lathe("Soil • shallow soft mound",[(.002,.000),(.306,.000),(.315,.010),(.308,.022),(.21,.040),(.001,.044)],self.soil)
@@ -103,7 +106,12 @@ class RoomProps(Studio):
             start=d*.041
             bend=d*(reach*.43)+Vector((0,0,h*.42))
             self.tube("Curved stem",[tuple(start),tuple(bend),tuple(end)],[.019,.014,.009],self.stem,axis=(0,0,1))
-            self.leaf("Sculpted tapered leaf",end,a,pitch,L*(1.08 if lance else 1),W*(.67 if lance else 1),self.leaves[i%4],i,lance)
+            moving=self.leaf("Sculpted tapered leaf",end,a,pitch,L*(1.08 if lance else 1),W*(.67 if lance else 1),self.leaves[i%4],i,lance)
+            for obj in moving:
+                obj["leaf_joint"]=i
+                obj["leaf_root"]=tuple(end)
+                obj["leaf_axis"]=(-math.sin(a),math.cos(a),0)
+                obj["leaf_direction"]=tuple(d)
 
     def slippers(self):
         for side,x,y,yaw in [(-1,-.251,-.021,-.14),(1,.244,.029,.19)]:

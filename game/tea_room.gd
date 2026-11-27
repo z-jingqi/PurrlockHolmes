@@ -1,24 +1,21 @@
 extends Control
 ## Case 01. Only tableware is collectible. Every view shares the fixed Blender camera.
-const MODEL := preload("res://assets/room.glb")
 const BACKDROP := preload("res://assets/room.webp")
 const ATLAS := preload("res://assets/tea-sprites.webp")
-const FRAMES := preload("res://game/tea_frames.gd").FRAMES
-const PROP_DYNAMICS := preload("res://game/prop_dynamics.gd")
+const ART := preload("res://game/tea_frames.gd")
+const FRAMES := ART.FRAMES
+const CLIPS := ART.CLIPS
+const MARKERS := ART.MARKERS
 const BOX := preload("res://assets/paw-box.svg")
 const HINT_RAY := preload("res://assets/hint-ray.png")
 const UI_FONT := preload("res://game/ui-zh.otf")
 const TARGETS := ["saucer","cup","plate","fork","bowl","teapot"]
 const DRAW_ORDER := ["bowl","teapot","saucer","cup","plate","fork"]
-const ART_DECOYS := ["rubber_plant","lance_plant","felt_slippers"]
-const FOLIAGE := ["rubber_plant","lance_plant"]
-# Times and screen motion are authored feedback, not simulated rigid-body forces.
-const FEEDBACK := {
-	"car":[.29,11.0,.079], "blocks":[.25,13.0,.068], "block":[.25,13.0,.068],
-	"balloon":[1.30,1.30,.076], "rubber_plant":[.84,2.8,6.6],
-	"lance_plant":[.84,3.25,6.0], "felt_slippers":[.37,8.0,5.2]
-}
-const BALLOON_TETHER := Vector3(-.397,-1.836,.03)
+const PLANTS := ["rubber_plant","lance_plant"]
+const BALLOONS := ["balloon_0","balloon_1","balloon_2"]
+const RIBBON_COLORS := [Color("#a57977"),Color("#b3916c"),Color("#769489")]
+const CAT_TIMES := [.045,.09,.15,.22,.29,.36,.43,.50,.55,.615,.69]
+const CUP_SETTLE := .27
 const CATEGORY := "餐具"
 const RENDER_SIZE := Vector2(1200,896)
 const TOP := 76.0
@@ -26,32 +23,16 @@ const FOOTER := 94.0
 const LIFT := .14
 const DURATION := .58
 const HINT_SECONDS := 3.0
-const WORLD := 1
-const ITEMS := 2
-const DECOYS := {
-	"car":[Vector3(3.40,.32,1.80),Vector3(.94,.61,.65)],
-	"blocks":[Vector3(4.63,.23,1.01),Vector3(.88,.34,.72)],
-	"block":[Vector3(-3.78,.23,2.18),Vector3(.34,.33,.34)],
-	"balloon":[Vector3(5.05,2.47,-.16),Vector3(.85,.98,.77)]
-}
-
-var view: SubViewport
-var live_layer: Node2D
 var hud_layer: Node2D
-var world: Node3D
-var camera: Camera3D
-var cup: RigidBody3D
-var cup_home := Vector3(-.92,1.08,.35)
-var cup_reference := Vector2.ZERO
-var saucer_support: StaticBody3D
-var groups: Dictionary={}
-var visuals: Dictionary={}
+var cup_age := -1.0
+var elapsed := 0.0
+var balloon_tapped := -1
+var decor: Dictionary={}
 var sprites: Dictionary={}
 var atlas_image: Image
 var shadow: GradientTexture2D
 var taken: Dictionary={}
 var flights: Dictionary={}
-var shakes: Dictionary={}
 var hint_key:=""
 var hint_age:=0.0
 var hint_next:=0
@@ -71,9 +52,11 @@ var test_order: Array[String]=[]
 var ticks:=0
 
 func _ready() -> void:
-	_build_world()
+	hud_layer=Node2D.new()
+	hud_layer.draw.connect(_draw_hud)
+	add_child(hud_layer)
 	atlas_image=ATLAS.get_image()
-	for key in TARGETS + ART_DECOYS:
+	for key in FRAMES:
 		var sprite:=AtlasTexture.new()
 		sprite.atlas=ATLAS
 		sprite.region=FRAMES[key][0]
@@ -97,122 +80,6 @@ func _ready() -> void:
 	if "--cup-first" in args:
 		test_order[0]="cup"
 		test_order[1]="saucer"
-
-func _build_world() -> void:
-	view=SubViewport.new()
-	view.size=Vector2i(RENDER_SIZE)
-	view.own_world_3d=true
-	view.transparent_bg=true
-	view.render_target_update_mode=SubViewport.UPDATE_ONCE
-	view.msaa_3d=Viewport.MSAA_4X
-	add_child(view)
-	live_layer=Node2D.new()
-	var blend:=CanvasItemMaterial.new()
-	blend.blend_mode=CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
-	live_layer.material=blend
-	live_layer.draw.connect(_draw_live)
-	add_child(live_layer)
-	hud_layer=Node2D.new()
-	hud_layer.draw.connect(_draw_hud)
-	add_child(hud_layer)
-	world=Node3D.new()
-	view.add_child(world)
-	var env:=WorldEnvironment.new()
-	env.environment=Environment.new()
-	env.environment.ambient_light_source=Environment.AMBIENT_SOURCE_COLOR
-	env.environment.ambient_light_color=Color("#ffeddf")
-	env.environment.ambient_light_energy=.37
-	world.add_child(env)
-	_light(Vector3(-5,10,5),.36,Color("#fff3df"),false)
-	_light(Vector3(5,7,2),.16,Color("#e9f2ff"),false)
-	_light(Vector3(1,8,-5),.15,Color("#ffecda"),false)
-	camera=Camera3D.new()
-	world.add_child(camera)
-	camera.position=Vector3(8.0,14.4,15.6)
-	camera.look_at(Vector3(0,1.1,-.06))
-	camera.keep_aspect=Camera3D.KEEP_WIDTH
-	camera.fov=rad_to_deg(2.0*atan(36.0/92.0))
-	camera.current=true
-	for key in DECOYS:
-		_add_box(_static(key,DECOYS[key][0],ITEMS),DECOYS[key][1])
-	var model:=MODEL.instantiate() as Node3D
-	world.add_child(model)
-	_reparent_meshes(model)
-	_floor_block(Vector3(-.11,.89,.82),Vector3(3.83,.22,2.53))
-	saucer_support=StaticBody3D.new()
-	saucer_support.collision_layer=WORLD
-	world.add_child(saucer_support)
-	saucer_support.position=Vector3(-.88,1.04,.39)
-	_add_cylinder(saucer_support,.30,.078)
-	cup=RigidBody3D.new()
-	cup.mass=.31
-	cup.freeze=true
-	cup.continuous_cd=true
-	cup.collision_layer=ITEMS
-	cup.collision_mask=WORLD
-	PROP_DYNAMICS.configure(cup,"ceramic")
-	world.add_child(cup)
-	cup.position=cup_home
-	_add_cylinder(cup,.20,.415,Vector3(0,.208,0))
-	cup_reference=camera.unproject_position(cup_home)
-func _light(pos: Vector3,energy: float,tint: Color,use_shadow: bool) -> void:
-	var light := DirectionalLight3D.new()
-	world.add_child(light)
-	light.position=pos
-	light.look_at(Vector3.ZERO)
-	light.light_energy=energy
-	light.light_color=tint
-	light.shadow_enabled=use_shadow
-
-func _add_box(body: CollisionObject3D, dims: Vector3, at := Vector3.ZERO, yaw := 0.0) -> void:
-	var c:=CollisionShape3D.new()
-	var shape:=BoxShape3D.new()
-	shape.size=dims
-	c.shape=shape
-	c.position=at
-	c.rotation.y=yaw
-	body.add_child(c)
-
-func _add_cylinder(body: CollisionObject3D,radius: float,height: float,at:=Vector3.ZERO) -> void:
-	var c:=CollisionShape3D.new()
-	var shape:=CylinderShape3D.new()
-	shape.radius=radius
-	shape.height=height
-	c.position=at
-	c.shape=shape
-	body.add_child(c)
-
-func _add_sphere(body: CollisionObject3D,radius: float) -> void:
-	var c:=CollisionShape3D.new()
-	var shape:=SphereShape3D.new()
-	shape.radius=radius
-	c.shape=shape
-	body.add_child(c)
-
-func _floor_block(pos: Vector3,dims: Vector3) -> void:
-	var block:=StaticBody3D.new()
-	block.collision_layer=WORLD
-	block.position=pos
-	world.add_child(block)
-	_add_box(block,dims)
-
-func _reparent_meshes(node: Node) -> void:
-	for child in node.get_children():
-		_reparent_meshes(child)
-	if node is MeshInstance3D:
-		var key := String(node.name).get_slice("__",0)
-		if groups.has(key):
-			node.reparent(visuals[key],true)
-			if DisplayServer.get_name()=="headless":return
-			for i in range(node.mesh.get_surface_count()):
-				var original := node.mesh.surface_get_material(i) as StandardMaterial3D
-				if not original:continue
-				var mat:=original.duplicate() as StandardMaterial3D
-				mat.albedo_color=mat.albedo_color.lerp(Color("#fff7ed"),.26)
-				# Preserve the material-specific finish from Blender (latex, rubber, enamel…).
-				# A small warm lift still matches the baked afternoon lighting.
-				mat.roughness=original.roughness
-				node.set_surface_override_material(i,mat)
 
 func _begin(id: int, at: Vector2) -> void:
 	if pointer!=-2 or not _field().has_point(at):return
@@ -364,24 +231,15 @@ func _box_center() -> Vector2:
 
 func _redraw() -> void:
 	queue_redraw()
-	if live_layer:live_layer.queue_redraw()
 	if hud_layer:hud_layer.queue_redraw()
-
-func _static(key: String,center: Vector3,layer: int) -> StaticBody3D:
-	var body:=StaticBody3D.new()
-	body.collision_layer=layer
-	body.position=center
-	body.set_meta("item",key)
-	world.add_child(body)
-	var model:=Node3D.new()
-	body.add_child(model)
-	groups[key]=body
-	visuals[key]=model
-	return body
 
 func _start_pixel(key: String) -> Vector2:
 	var pixel: Vector2=FRAMES[key][1]
-	if key=="cup":pixel+=camera.unproject_position(cup.position)-cup_reference
+	if key=="cup" and cup_age>=0:
+		var t:=minf(cup_age/CUP_SETTLE,1.0)
+		# A very short authored settle: this level no longer requires a 3D world.
+		var fall:=minf(1.0,pow(t/.69,2.0)) if t<.69 else 1.0-.12*sin((t-.69)/.31*PI)
+		pixel+=MARKERS["cup_drop"]*fall
 	return pixel
 
 func _prop_center(key: String) -> Vector2:
@@ -394,11 +252,11 @@ func _zoom(key: String) -> float:
 	return 1.0+(.5+.5*sin(hint_age*TAU*1.12))*.09*a
 
 func _draw() -> void:
-	if not view or not camera:return
+	if sprites.is_empty():return
 	var f:=_scale()
 	draw_texture_rect(BACKDROP,Rect2(_origin(),RENDER_SIZE*f),false)
-	for key in ART_DECOYS:
-		if sprites.has(key):_draw_art_decoy(key,f)
+	_draw_decor(f)
+	_draw_balloon_bunch(f)
 	for key in DRAW_ORDER:
 		if not sprites.has(key) or taken.has(key) or flights.has(key):continue
 		if key==hint_key:_draw_hint(key)
@@ -412,50 +270,86 @@ func _draw() -> void:
 			draw_texture_rect(shadow,Rect2(bottom-skid*.5,skid),false,Color(1,1,1,.54))
 		draw_texture_rect(sprite,Rect2(center-d*.5,d),false)
 
-func _wave(key: String,phase := 0.0) -> float:
-	if not shakes.has(key):return 0.0
-	var age: float=shakes[key]
-	var stats: Array=FEEDBACK[key]
-	var t:=clampf(age/float(stats[0]),0.0,1.0)
-	return sin(age*TAU*float(stats[1])+phase)*smoothstep(0.0,.13,t)*pow(1.0-t,1.45)*float(stats[2])
+func _clip_frame(key: String) -> String:
+	var age: float=decor.get(key,-1.0)
+	var frames: Array=CLIPS[key]
+	if key!="cat":
+		return frames[clampi(roundi(maxf(0,age)*20),0,frames.size()-1)]
+	if age<0:return ""
+	for i in range(CAT_TIMES.size()):
+		if age<CAT_TIMES[i]:return frames[i]
+	return ""
 
-func _plant_offset(key: String,v: float) -> float:
-	# Taper to zero at the soil. The strips at different heights follow a slight phase lag.
-	var flex:=pow(maxf(0.0,1.0-v/.73),1.37)
-	return (_wave(key)+.32*_wave(key,(1.0-v)*2.8))*flex
+func _draw_decor(f: float) -> void:
+	for key: String in PLANTS+["cat"]:
+		var frame:=_clip_frame(key)
+		if frame.is_empty():continue
+		var spr: AtlasTexture=sprites[frame]
+		var p: Vector2=FRAMES[frame][1]
+		draw_texture_rect(spr,Rect2(_origin()+p*f,spr.get_size()*f),false)
 
-func _draw_art_decoy(key: String,f: float) -> void:
-	var sprite: AtlasTexture=sprites[key]
-	var d:=sprite.get_size()
-	var origin:=_origin()+_start_pixel(key)*f
-	if key=="felt_slippers":
-		if shadow:
-			draw_texture_rect(shadow,Rect2(origin+Vector2(4,d.y*.51)*f,Vector2(d.x-8,d.y*.56)*f),false,Color(1,1,1,.34))
-		draw_texture_rect(sprite,Rect2(origin+Vector2(_wave(key)*f,0),d*f),false)
-		return
-	if not shakes.has(key):
-		draw_texture_rect(sprite,Rect2(origin,d*f),false)
-		return
-	var tex_size:=ATLAS.get_size()
-	var r: Rect2=sprite.region
-	# Warp the baked curving leaves vertically in a continuous strip mesh to keep
-	# their Blender shading. The ceramic pot is on the separate static backdrop.
-	const ROWS := 12
-	for j in range(ROWS):
-		var a:=float(j)/ROWS
-		var b:=float(j+1)/ROWS
-		var va:=Vector2(_plant_offset(key,a),d.y*a)
-		var vb:=Vector2(_plant_offset(key,b),d.y*b)
-		var horizontal:=Vector2(d.x,0)
-		var left_a:=r.position+Vector2(0,d.y*a)
-		var left_b:=r.position+Vector2(0,d.y*b)
-		draw_primitive(
-			PackedVector2Array([origin+va*f,origin+(va+horizontal)*f,origin+(vb+horizontal)*f,origin+vb*f]),
-			PackedColorArray([Color.WHITE]),
-			PackedVector2Array([left_a/tex_size,(left_a+horizontal)/tex_size,(left_b+horizontal)/tex_size,left_b/tex_size]),ATLAS)
+func _balloon_pose(index: int) -> Vector3:
+	var phase:=float(index)*1.69
+	var clock:=elapsed*(.99+index*.103)
+	var a:=clock+phase
+	var drift:=Vector2(2.6*sin(a)+.55*sin(a*1.71),2.0*cos(a*.87+phase))
+	var twist:=.029*sin(a*.69)
+	if decor.has("balloons"):
+		var lag:=0.057*absf(index-balloon_tapped)
+		var t:=float(decor["balloons"])-lag
+		if t>0:
+			var drive:=sin(minf(t/.20,1.0)*PI*.5)*exp(-t*1.45)*(1.0-smoothstep(1.45,1.85,t))
+			var direction:=1.0 if balloon_tapped==0 else -1.0
+			var power:=1.0 if index==balloon_tapped else .63
+			drift.x+=direction*17.2*power*sin(t*(6.6+index*.66)+.60+phase*.24)*drive
+			drift.y-=8.6*power*cos(t*(4.4+index*.54)+phase*.42)*drive
+			twist+=direction*.092*sin(t*6.25+.60+phase*.21)*drive*power
+	return Vector3(drift.x,drift.y,twist)
 
-func _draw_live() -> void:
-	live_layer.draw_texture_rect(view.get_texture(),Rect2(_origin(),RENDER_SIZE*_scale()),false)
+func _balloon_geometry(index: int,pose: Vector3) -> Array[Vector2]:
+	var key: String=BALLOONS[index]
+	var center: Vector2=FRAMES[key][1]+FRAMES[key][0].size*.5
+	var tip: Vector2=MARKERS[key]
+	var displaced:=center+Vector2(pose.x,pose.y)
+	return [displaced,displaced+(tip-center).rotated(pose.z)]
+
+func _ribbon_curve(index: int,tip: Vector2,age: float) -> PackedVector2Array:
+	var root: Vector2=MARKERS["tether"]
+	var delta:=tip-root
+	var length:=maxf(absf(delta.y),24.0)
+	var phase:=1.61*index
+	var slack:=1.0
+	if decor.has("balloons"):
+		var t:=maxf(0.0,float(decor["balloons"])-.10-index*.035)
+		slack+=maxf(0.0,sin(t*6.65))*exp(-t*2.2)*.65
+	var bow:=sin(age*1.22+phase)
+	var fan:=float(index-1)
+	var c1:=root+Vector2(delta.x*.05+(4.5*fan+6.0*bow)*slack,-length*.31)
+	var c2:=tip+Vector2(-delta.x*.16+(11.0*fan-7.8*bow)*slack,length*.34)
+	var points:=PackedVector2Array()
+	for j in range(23):
+		var t:=float(j)/22.0
+		var q:=1.0-t
+		points.append(root*q*q*q+3*c1*q*q*t+3*c2*q*t*t+tip*t*t*t)
+	return points
+
+func _draw_balloon_bunch(f: float) -> void:
+	var origin:=_origin()
+	var drawn: Array=[]
+	for i in range(BALLOONS.size()):
+		var pose:=_balloon_pose(i)
+		var geom:=_balloon_geometry(i,pose)
+		var points:=_ribbon_curve(i,geom[1],elapsed)
+		for j in range(points.size()):points[j]=origin+points[j]*f
+		draw_polyline(points,RIBBON_COLORS[i],maxf(.68,f*1.01),true)
+		drawn.append([geom[0],pose.z])
+	# Back balloon first; the front shapes naturally cover any ribbon behind them.
+	for i in [1,0,2]:
+		var spr: AtlasTexture=sprites[BALLOONS[i]]
+		var d:=spr.get_size()*f
+		draw_set_transform(origin+drawn[i][0]*f,drawn[i][1],Vector2.ONE)
+		draw_texture_rect(spr,Rect2(-d*.5,d),false)
+	draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
 
 func _draw_hud() -> void:
 	hud_layer.draw_rect(Rect2(0,0,size.x,TOP),Color("#fff7e9"))
@@ -521,16 +415,31 @@ func _draw_hint(key: String) -> void:
 		draw_texture_rect(HINT_RAY,Rect2(0,-bloom*.25,length*.78,bloom*.5),false,Color(1,1,1,a*.60))
 	draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
 
+func _art_alpha(key: String,rel: Vector2,threshold := .22) -> bool:
+	var bounds: Rect2=FRAMES[key][0]
+	return Rect2(Vector2.ZERO,bounds.size).has_point(rel) and atlas_image.get_pixelv(Vector2i(bounds.position+rel)).a>threshold
+
 func _alpha_hit(key: String,pixel: Vector2) -> bool:
 	var bounds: Rect2=FRAMES[key][0]
-	var scale:=_zoom(key)
-	var rel:=(pixel-_start_pixel(key)-bounds.size*.5)/scale+bounds.size*.5
-	if key=="felt_slippers":
-		rel.x-=_wave(key)
-	elif key in FOLIAGE:
-		rel.x-=_plant_offset(key,clampf(rel.y/bounds.size.y,0.0,1.0))
-	if not Rect2(Vector2.ZERO,bounds.size).has_point(rel):return false
-	return atlas_image.get_pixelv(Vector2i(bounds.position+rel)).a>.22
+	var rel:=(pixel-_start_pixel(key)-bounds.size*.5)/_zoom(key)+bounds.size*.5
+	return _art_alpha(key,rel)
+
+func _decor_at(pixel: Vector2) -> String:
+	if ART.CAT_HIT.has_point(pixel):return "cat"
+	for key in PLANTS:
+		var frame:=_clip_frame(key)
+		var top: Vector2=FRAMES[frame][1]
+		var d: Vector2=FRAMES[frame][0].size
+		# Do not turn the pot/soil into another button. Only the green silhouette reacts.
+		var rel:=pixel-top
+		if rel.y<d.y*.77 and _art_alpha(frame,rel,.26):return key
+	for i in [2,0,1]:
+		var pose:=_balloon_pose(i)
+		var key: String=BALLOONS[i]
+		var center:=_balloon_geometry(i,pose)[0]
+		var rel: Vector2=(pixel-center).rotated(-pose.z)+FRAMES[key][0].size*.5
+		if _art_alpha(key,rel,.26):return key
+	return ""
 
 func _item_at(pixel: Vector2,tolerance := true) -> String:
 	# Match the actual alpha silhouette. Topmost object wins, e.g. cup over saucer.
@@ -549,30 +458,21 @@ func _pick_scene(pixel: Vector2) -> void:
 	if not key.is_empty():
 		_take(key)
 		return
-	for prop: String in ART_DECOYS:
-		if _alpha_hit(prop,pixel):
-			shakes[prop]=0.0
-			return
-	var origin:=camera.project_ray_origin(pixel)
-	var ray:=PhysicsRayQueryParameters3D.create(origin,origin+camera.project_ray_normal(pixel)*55.0,ITEMS)
-	var hit:=view.find_world_3d().direct_space_state.intersect_ray(ray)
-	if not hit.is_empty():
-		var decoy: String=hit.collider.get_meta("item","")
-		if decoy in DECOYS:shakes[decoy]=0.0
+	var prop:=_decor_at(pixel)
+	if prop.is_empty():return
+	if prop in BALLOONS:
+		if decor.has("balloons"):return
+		balloon_tapped=BALLOONS.find(prop)
+		decor["balloons"]=0.0
+	elif not decor.has(prop):
+		decor[prop]=0.0
 
 func _take(key: String) -> void:
 	if taken.has(key) or flights.has(key):return
 	flights[key]={"age":0.0,"source":_prop_center(key),"factor":_scale(),"zoom":_zoom(key)}
 	if hint_key==key:hint_key=""
-	if key=="cup":
-		cup.freeze=true
-		cup.collision_layer=0
-		cup.collision_mask=0
-	if key=="saucer":
-		saucer_support.collision_layer=0
-		if not taken.has("cup") and not flights.has("cup"):
-			cup.freeze=false
-			cup.sleeping=false
+	if key=="saucer" and not taken.has("cup") and not flights.has("cup"):
+		cup_age=0.0
 	_refresh_progress()
 
 func _process(dt: float) -> void:
@@ -586,26 +486,19 @@ func _process(dt: float) -> void:
 			taken[key]=true
 			bump=1.0
 			_refresh_progress()
-	for key in shakes.keys():
-		shakes[key]+=dt
-		var finished: bool=shakes[key]>=FEEDBACK[key][0]
-		if visuals.has(key):
-			view.render_target_update_mode=SubViewport.UPDATE_ONCE
-			var model: Node3D=visuals[key]
-			if key=="balloon":
-				model.rotation=Vector3(_wave(key,1.8)*.36,0,_wave(key))
-				# Small damped arc with the string's basket contact kept in place.
-				model.position=BALLOON_TETHER-model.basis*BALLOON_TETHER
-			else:
-				model.position.x=_wave(key)
-		if finished:shakes.erase(key)
+	elapsed+=dt
+	if cup_age>=0 and cup_age<CUP_SETTLE:cup_age=minf(cup_age+dt,CUP_SETTLE)
+	for key in decor.keys():
+		decor[key]+=dt
+		var duration:=.80
+		if key=="cat":duration=CAT_TIMES[-1]
+		if key=="balloons":duration=2.03
+		if decor[key]>=duration:decor.erase(key)
 	bump=move_toward(bump,0.0,dt*3.7)
 	_redraw()
 
 func _physics_process(_dt: float) -> void:
 	ticks+=1
-	if not cup.freeze and not cup.sleeping:
-		PROP_DYNAMICS.apply_air_drag(cup,Vector3(.55,.42,.52),"ceramic")
 	if pending_tap.x>=0:
 		_pick_scene(pending_tap)
 		pending_tap=Vector2(-1,-1)
@@ -643,33 +536,41 @@ func _test_frame() -> void:
 			_test(_tap_point(key).ratio>=.25,"Insufficient visible area: "+key)
 		_hint_target()
 		_test(hint_key in TARGETS and taken.is_empty(),"Hint must not collect a target")
-		var pose:=camera.global_transform
+		var fixed: Vector2=FRAMES["plate"][1]
 		pan+=Vector2(90,90)
 		_clamp_pan()
 		pan=Vector2.ZERO
-		_test(pose==camera.global_transform,"Pan changed camera transform")
-		var car_pixel:=camera.unproject_position(DECOYS.car[0])
-		_pick_scene(car_pixel)
-		_test(shakes.has("car") and flights.is_empty(),"Decoy should shake but never advance progress")
-		for prop: String in ART_DECOYS:
-			var pixel: Vector2=FRAMES[prop][1]+FRAMES[prop][0].size*.5
-			var hit:=false
-			for j in range(-12,13,2):
-				for i in range(-12,13,2):
-					var sample:=pixel+Vector2(i,j)
-					if not _alpha_hit(prop,sample):continue
-					_pick_scene(sample)
-					hit=true
-					break
-				if hit:break
-			_test(hit and shakes.has(prop),"Art decoy isn't interactable: "+prop)
-		_pick_scene(camera.unproject_position(DECOYS.balloon[0]))
-		_test(shakes.has("balloon") and taken.is_empty(),"Balloon interaction collected an object")
+		_test(_start_pixel("plate")==fixed,"Pan changed scene coordinates")
+		_pick_scene(Vector2(771,609)) # toy car is now static scenery
+		_test(decor.is_empty(),"Static props must not react")
+		var face: Rect2=ART.CAT_HIT
+		_pick_scene(face.get_center())
+		_test(decor.has("cat"),"Cat did not react")
+		for plant in PLANTS:
+			var frame:=_clip_frame(plant)
+			var tile: Rect2=FRAMES[frame][0]
+			var start_at: Vector2=FRAMES[frame][1]
+			var point:=Vector2(-1,-1)
+			for y in range(5,int(tile.size.y*.70),2):
+				for x in range(4,int(tile.size.x)-4,2):
+					var sample:=start_at+Vector2(x,y)
+					if _decor_at(sample)==plant:
+						point=sample
+						break
+				if point.x>=0:break
+			_pick_scene(point)
+			_test(decor.has(plant),"Leaf interaction missing: "+plant)
+		for i in range(BALLOONS.size()):
+			var pt:=_balloon_geometry(i,_balloon_pose(i))[0]
+			_test(_decor_at(pt)==BALLOONS[i],"A balloon is not independently clickable")
+		_pick_scene(_balloon_geometry(1,_balloon_pose(1))[0])
+		_test(decor.has("balloons") and taken.is_empty(),"Balloon response changed objective")
 	if ticks==18:
-		_test(absf(_plant_offset("rubber_plant",.15))>.1 and is_zero_approx(_plant_offset("rubber_plant",1.0)),"Foliage should move at the leaves and stay at the soil")
-		var model: Node3D=visuals.balloon
-		_test(absf(model.rotation.z)>.001 and (model.transform*BALLOON_TETHER).distance_to(BALLOON_TETHER)<.0001,"Balloon should sway around a fixed tether")
-		_test(taken.is_empty() and flights.is_empty(),"Decorative actions must not affect the objective")
+		_test(_clip_frame("rubber_plant")!=CLIPS["rubber_plant"][0] and not _clip_frame("cat").is_empty(),"Missing leaf or cat animation")
+		var end:=_balloon_geometry(1,_balloon_pose(1))[1]
+		var ribbon:=_ribbon_curve(1,end,elapsed)
+		_test(ribbon[0].is_equal_approx(MARKERS["tether"]) and ribbon[-1].is_equal_approx(end),"Ribbon did not maintain both tie points")
+		_test(taken.is_empty() and flights.is_empty(),"Decorative actions affected objective")
 	for i in range(TARGETS.size()):
 		var phase:=24+i*63
 		var key: String=test_order[i]
@@ -694,8 +595,8 @@ func _test_frame() -> void:
 		if ticks==phase+57:
 			_test(taken.has(key) and progress.text.begins_with(CATEGORY),"Category changed or count failed: "+key)
 			if key=="saucer":
-				if taken.has("cup"):_test(cup.freeze,"An already collected cup must stay out of the simulation")
-				else:_test(cup.position.y<cup_home.y-.035,"Cup did not settle after its saucer was collected")
+				if taken.has("cup"):_test(cup_age<0,"A collected cup must not reappear")
+				else:_test(cup_age>=CUP_SETTLE and _start_pixel("cup").y>FRAMES["cup"][1].y+3,"Cup did not settle after its saucer was collected")
 			print("TEA_TEST ",key," count=",taken.size()," category=",CATEGORY)
 	if ticks==417:
 		_test(taken.size()==TARGETS.size() and win.visible,"Missing end-of-level state")

@@ -34,4 +34,4 @@ PURRLOCK_BAKE_DIR=/tmp/purrlock-bake blender -b art/room.blend --python art/asse
 | felt_slippers | Room · Felt slippers | 左右脚楦、橡胶底、抓绒内里、包边与缝线 | 0.34 kg / 双 |
 | reed_basket | Room · Linen-lined rattan basket | 藤条上下交织、卷边及蓝色亚麻衬布 | 0.57 kg |
 
-质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：花盆、篮子和家具固定；枝叶随点击摆动，拖鞋轻晃，气球在绳端附近回摆。交互反馈是受控制的动画，不代表这些装饰物已启用完整的刚体或布料模拟。气球、木块和玩具车仍使用带有独立乳胶、橡胶和漆面材质的 3D 模型。
+质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：固定家具、玩具及拖鞋住在同一张底图里；仅猫、两株植物的叶片和三只气球会响应点击。叶片分别以自己的叶柄接点转动，猫的头部和眨眼是剪好的同光影画面，乳胶气球是透明图，绳子是 Godot 绘制的柔性曲线，落点来自 Blender 的小熊爪上锚点。视角和渲染位置由 `room-layout.json` 中间数据传给打包器，不需在引擎中手摆模型。

@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# Export the same native physics scene without changing the native entry point.
+# Export the same native fixed-camera scene without changing the native entry point.
 set -eu
 cd "$(dirname "$0")/.."
 root="$PWD"
@@ -15,7 +15,7 @@ scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/project/game" "$scratch/project/assets" "$scratch/export"
 cp game/*.gd game/ui-zh.otf "$scratch/project/game/"
-cp assets/room.glb assets/room.webp assets/tea-sprites.webp assets/hint-ray.png assets/paw-box.svg "$scratch/project/assets/"
+cp assets/room.webp assets/tea-sprites.webp assets/hint-ray.png assets/paw-box.svg "$scratch/project/assets/"
 cp web/index.html "$scratch/project/shell.html"
 cp main.tscn project.godot "$scratch/project/"
 cat > "$scratch/project/export_presets.cfg" <<PRESET

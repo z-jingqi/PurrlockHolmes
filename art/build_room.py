@@ -155,7 +155,6 @@ car_cab=finish_material("Toy • rose enamel","df9a98",.43,coat=.2)
 car_glass=finish_material("Toy • celadon windows","72929c",.30,coat=.26)
 car_tire=finish_material("Toy • matte rubber","50404a",.84)
 wheel_hub=finish_material("Toy • pale metal hubs","d7b89a",.44)
-latex=finish_material("Balloon • rose latex","dc7c87",.27,coat=.23)
 box('Toy car chassis',(3.39,-1.80,.31),(.91,.48,.26),car_enamel,.088)
 box('Toy car cab',(3.52,-1.80,.49),(.48,.38,.29),car_cab,.083)
 for y in [-2.002,-1.598]:
@@ -171,26 +170,62 @@ for x in [3.11,3.69]:
         ell('Toy car shoulder tire',(x,y,.207),(.147,.071,.143),car_tire)
         ell('Toy car steel hub',(x,y+sign*.055,.207),(.082,.027,.081),wheel_hub)
         ell('Toy car center cap',(x,y+sign*.074,.207),(.029,.014,.029),car_cab)
-for x,y,m in [(4.38,-1.18,blue),(4.92,-1.18,gold),(4.62,-.84,pink),(-3.78,-2.18,mint)]:
+for x,y,m in [(4.38,-1.30,blue),(4.92,-1.34,gold),(4.62,-1.04,pink),(-3.78,-2.18,mint)]:
     box('Wooden toy block',(x,y,.226),(.32,.33,.32),m,.037,.26)
     badge=ring('Block inlay',(x,y,.386),.079,.010,cream)
     badge.scale.y=.82
 place(props["felt_slippers"],(-4.80,-2.78,.062),.051)
-place(props["reed_basket"],(4.63,-.02,.063),.08,1.08)
-# Balloon pole mesh: pear-shaped membrane tapers into the latex neck, not a sphere plus oval.
-balloon_col=bpy.context.collection
-shaper=Studio.__new__(Studio);shaper.collection=balloon_col
-o=shaper.lathe("Balloon membrane",[(r,h+.55) for r,h in [(.001,-.537),(.040,-.533),(.043,-.492),
-    (.083,-.454),(.164,-.410),(.280,-.339),(.371,-.229),(.413,-.098),
-    (.433,.046),(.425,.170),(.383,.288),(.315,.386),(.217,.458),(.105,.493),(.001,.504)]],latex,z=-.55)
-o.location=(5.05,.16,2.47)
-o.rotation_euler.y=.11
-ell('Balloon knot',(5.00,.16,1.936),(.049,.040,.040),latex)
-shaper.tube('Balloon folded tie',[(4.97,.15,1.933),(4.999,.12,1.934),(5.043,.16,1.948)],
-    [.016,.024,.016],latex)
-shaper.tube('Balloon thread',[(4.998,.157,1.915),(4.958,.156,1.71),(4.948,.15,1.51),
-    (4.841,.12,1.26),(4.833,.124,1.075),(4.751,.12,.89),(4.653,.13,.634)],
-    [.010,.010,.010,.0095,.0095,.0095,.009],dark,axis=(0,1,0))
+# The bear is a non-interactive prop baked into the room; its paw fixes all three ribbons.
+felt=finish_material("Bear • honey plush","cd996f",.88,.31)
+pale=finish_material("Bear • short biscuit pile","edc8a3",.83,.28)
+stitch=finish_material("Bear • chocolate embroidery","604448",.77,.20)
+ribbon=finish_material("Bear • sage grosgrain ribbon","8aaa9a",.77,.26)
+bx,by,bz=4.72,-.03,.064
+def bear_part(name,p,scale,m):
+    return ell("Plush bear • "+name,(bx+p[0],by+p[1],bz+p[2]),scale,m)
+bear_part("seated rounded body",(0,.045,.335),(.38,.267,.335),felt)
+bear_part("belly panel",(0,-.168,.335),(.236,.085,.231),pale)
+bear_part("large head",(.014,-.005,.797),(.383,.295,.326),felt)
+for sign in (-1,1):
+    bear_part("round ear",(sign*.277,.012,1.037),(.146,.098,.147),felt)
+    bear_part("recessed ear lining",(sign*.281,-.065,1.048),(.088,.027,.093),pale)
+    bear_part("embroidered eye",(sign*.132+.014,-.271,.827),(.027,.018,.033),stitch)
+    bear_part("foot",(sign*.233,-.18,.139),(.185,.204,.136),felt)
+    bear_part("oval foot pad",(sign*.243,-.326,.162),(.115,.071,.078),pale)
+bear_part("soft muzzle",(.016,-.254,.726),(.157,.078,.104),pale)
+bear_part("stitched nose",(.015,-.325,.756),(.047,.019,.029),stitch)
+line("Bear • stitched smile",[(bx-.032,by-.327,bz+.713),(bx+.014,by-.335,bz+.695),(bx+.063,by-.324,bz+.712)],.009,stitch)
+o=bear_part("resting arm",(-.328,-.04,.361),(.148,.139,.25),felt);o.rotation_euler.y=.47
+o=bear_part("raised holding arm",(.342,-.04,.450),(.143,.133,.249),felt);o.rotation_euler.y=-.53
+bear_part("holding paw",(.443,-.119,.612),(.118,.111,.128),felt)
+for sign in (-1,1):
+    o=bear_part("neck bow wings",(sign*.101,-.242,.548),(.102,.040,.064),ribbon);o.rotation_euler.y=sign*.21
+bear_part("neck bow knot",(0,-.279,.546),(.054,.037,.052),ribbon)
+# Tiny knots and the tied band are baked; the lines above them are drawn as flexible 2D curves.
+pin=(bx+.443,by-.233,bz+.642)
+o=ring('Bear • ribbon tied on paw',(bx+.443,by-.124,bz+.644),.113,.013,ribbon)
+o.rotation_euler.y=-.29
+bear_part("ribbon knot at tether",(.443,-.233,.642),(.033,.018,.023),ribbon)
+anchor=bpy.data.objects.new("Ribbon pin",None);bpy.context.scene.collection.objects.link(anchor)
+anchor.location=pin;anchor["room_marker"]="tether"
+
+# Individual latex silhouettes, drawn at the exact scene light and camera as 2D sprites.
+shaper=Studio.__new__(Studio);shaper.collection=bpy.context.collection
+profile=[(.001,-.542),(.042,-.538),(.046,-.490),(.083,-.445),(.167,-.396),
+         (.277,-.337),(.369,-.230),(.414,-.108),(.433,.047),(.425,.169),
+         (.383,.288),(.315,.385),(.217,.458),(.105,.493),(.001,.504)]
+for i,(rgb,pos,scale,lean) in enumerate([
+    ("dc8f95",(5.43,-.13,2.40),.76,-.12),
+    ("e4b974",(5.80,.11,2.79),.80,.05),
+    ("8ab9b0",(6.27,-.64,2.43),.73,.18)]):
+    mat_balloon=finish_material("Balloon • latex "+str(i),rgb,.38,coat=.16)
+    o=shaper.lathe("Balloon membrane",[(r*scale,(h+.56)*scale) for r,h in profile],mat_balloon,z=-.56*scale)
+    o.location=pos;o.rotation_euler.y=lean;o["room_balloon"]=i
+    from mathutils import Euler
+    tip=Vector(pos)+Euler((0,lean,0)).to_matrix()@Vector((0,0,-.545*scale))
+    knot=ell("Balloon tied neck",tip,(.033,.027,.022),mat_balloon);knot["room_balloon"]=i
+    marker=bpy.data.objects.new("Balloon string start "+str(i),None);bpy.context.scene.collection.objects.link(marker)
+    marker.location=tip;marker["room_marker"]="balloon_"+str(i)
 box('Floor magazine',(-2.67,-3.46,.162),(.80,.58,.048),mint,.034,-.18)
 box('Magazine art',(-2.67,-3.46,.190),(.46,.24,.008),cream,.022,-.18)
 # Quiet room-model refinements: believable materials and furniture joinery.

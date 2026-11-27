@@ -1,65 +1,140 @@
-"""Bake the tea level from art/room.blend. Geometry, pose and lighting have one source."""
+"""Bake the first room, collectible layers and short character animations. No live geometry ships."""
+import json
+import math
+import os
 from pathlib import Path
-import bpy, os, re
 
-root = Path(bpy.data.filepath).resolve().parents[1]
+import bpy
+from bpy_extras.object_utils import world_to_camera_view
+from mathutils import Matrix, Vector
+
+root=Path(bpy.data.filepath).resolve().parents[1]
 stage=Path(os.environ.get("PURRLOCK_BAKE_DIR",str(root/"art"/".bake")))
 stage.mkdir(parents=True,exist_ok=True)
 scene=bpy.context.scene
-assets={o["tea_key"]:o for o in scene.objects if "tea_key" in o}
-expect={"saucer","cup","plate","fork","bowl","teapot"}
-assert set(assets)==expect
-overlays={o.instance_collection["asset_id"]:o for o in scene.objects
-          if o.instance_type=='COLLECTION' and o.instance_collection
-          and o.instance_collection.get("asset_id") in {"rubber_plant","lance_plant","felt_slippers"}}
-assert len(overlays)==3
-decoys={}
-for obj in scene.objects:
-    name=re.sub(r'\.\d{3,}$','',obj.name)
-    if name.startswith("Toy car"):key="car"
-    elif name in {"Wooden toy block","Block inlay"}:key="blocks" if obj.location.x>0 else "block"
-    elif name.startswith("Balloon "):key="balloon"
-    else:continue
-    decoys[obj]=(key,name)
-
-scene.render.resolution_x=1200
-scene.render.resolution_y=896
+camera=scene.camera
+W,H=1200,896
+scene.render.resolution_x=W
+scene.render.resolution_y=H
 scene.render.resolution_percentage=100
 scene.render.threads_mode='FIXED'
-scene.render.threads=8
+scene.render.threads=min(8,os.cpu_count() or 4)
 scene.render.image_settings.file_format='PNG'
 scene.render.image_settings.color_mode='RGBA'
-scene.cycles.samples=int(os.environ.get("PURRLOCK_SAMPLES","128"))
 scene.cycles.use_adaptive_sampling=True
-scene.cycles.adaptive_threshold=.012
+scene.cycles.adaptive_threshold=.014
+scene.cycles.seed=29
 scene.cycles.use_denoising=os.environ.get("PURRLOCK_OIDN")=="1"
-for o in [*assets.values(),*overlays.values(),*decoys]:o.hide_render=True
-scene.render.filepath=str(stage/"room.png")
-if os.environ.get("PURRLOCK_KEEP_BACKGROUND")!="1" or not (stage/"room.png").is_file():
+samples=int(os.environ.get("PURRLOCK_SAMPLES","144"))
+
+targets={o["tea_key"]:o for o in scene.objects if "tea_key" in o}
+assert set(targets)=={"saucer","cup","plate","fork","bowl","teapot"}
+plants={o.instance_collection["asset_id"]:o for o in scene.objects
+        if o.instance_type=="COLLECTION" and o.instance_collection
+        and o.instance_collection.get("asset_id") in {"rubber_plant","lance_plant"}}
+assert len(plants)==2
+balloons=[[o for o in scene.objects if o.get("room_balloon")==i] for i in range(3)]
+assert all(len(group)==2 for group in balloons)
+cat=[o for o in scene.objects if o.name.startswith("Cat ")]
+cat_body=[o for o in cat if o.name.startswith(("Cat body","Cat little paw","Cat tail","Cat little bow"))]
+cat_head=[o for o in cat if o not in cat_body]
+geom=[o for o in scene.objects if o.type in {"MESH","CURVE"} or o.instance_type=="COLLECTION"]
+animated=[*targets.values(),*plants.values(),*(o for group in balloons for o in group)]
+
+bpy.context.view_layer.update()
+
+def pixel(point):
+    v=world_to_camera_view(scene,camera,point)
+    return (v.x*W,(1-v.y)*H)
+
+def crop_bounds(objects,pad):
+    points=[]
+    for o in objects:
+        instances=[(p,o.matrix_world@p.matrix_world) for p in o.instance_collection.objects] if o.instance_type=="COLLECTION" else [(o,o.matrix_world)]
+        for obj,m in instances:
+            if obj.type not in {"MESH","CURVE"}:continue
+            points += [pixel(m@Vector(p)) for p in obj.bound_box]
+    return [max(0,math.floor(min(p[0] for p in points))-pad),
+            max(0,math.floor(min(p[1] for p in points))-pad),
+            min(W,math.ceil(max(p[0] for p in points))+pad),
+            min(H,math.ceil(max(p[1] for p in points))+pad)]
+
+bounds={key:crop_bounds([obj],11 if key in targets else 15) for key,obj in (targets|plants).items()}
+for i,group in enumerate(balloons):bounds[f"balloon_{i}"]=crop_bounds(group,7)
+bounds["cat"]=crop_bounds(cat_head,15)
+markers={o["room_marker"]:[round(v,2) for v in pixel(o.location)] for o in scene.objects if "room_marker" in o}
+# Upright cup may settle a few pixels lower if its supporting saucer is removed.
+cup_pos=targets["cup"].location
+p0,p1=pixel(cup_pos),pixel(cup_pos+Vector((0,0,-.075)))
+markers["cup_drop"]=[round(b-a,2) for a,b in zip(p0,p1)]
+(stage/"room-layout.json").write_text(json.dumps({"bounds":bounds,"markers":markers},indent=2))
+
+def render(name,box=None):
+    scene.render.use_border=box is not None
+    scene.render.use_crop_to_border=box is not None
+    if box:
+        l,t,r,b=box
+        # The tiny fraction avoids floating point truncation at integer boundaries.
+        scene.render.border_min_x=(l+.01)/W
+        scene.render.border_max_x=(r+.01)/W
+        scene.render.border_min_y=(H-b+.01)/H
+        scene.render.border_max_y=(H-t+.01)/H
+    scene.render.filepath=str(stage/(name+".png"))
     bpy.ops.render.render(write_still=True)
 
-# Transparent renders provide the exact same pixels at rest, during hints and during pickup.
-for o in scene.objects:
-    if o.type in {'MESH','CURVE'} or o.instance_type=='COLLECTION':o.hide_render=True
-scene.render.film_transparent=True
-scene.cycles.samples=max(32,scene.cycles.samples//2)
-scene.cycles.adaptive_threshold=.025
-for key,o in (assets | overlays).items():
-    o.hide_render=False
-    scene.render.filepath=str(stage/(key+".png"))
-    use_existing_tea = key in assets and os.environ.get("PURRLOCK_KEEP_TEA")=="1" and (stage/(key+".png")).is_file()
-    if not use_existing_tea:
-        bpy.ops.render.render(write_still=True)
-    o.hide_render=True
+for o in geom:o.hide_render=o in animated
+scene.render.film_transparent=False
+scene.cycles.samples=samples
+render("room")
 
-# For interactive distractors only. Non-interactive furniture belongs to the baked room.
-bpy.ops.object.select_all(action="DESELECT")
-for o,(key,name) in decoys.items():
-    for mod in o.modifiers:
-        if mod.type=='BEVEL':mod.segments=3
-    transform=o.matrix_world.copy()
-    o.parent=None;o.matrix_world=transform
-    o.name=f'{key}__{name}';o.select_set(True)
-bpy.ops.export_scene.gltf(filepath=str(root/'assets/room.glb'),export_format='GLB',
-                         use_selection=True,export_apply=True,export_texcoords=False,
-                         export_cameras=False,export_lights=False,export_animations=False)
+# Same environment light and same pixels as the surrounding couch: feathered only at the patch edges.
+head_center=Vector((-3.52,1.95,1.76))
+neutral={o:o.matrix_world.copy() for o in cat_head}
+# Small anticipatory blink, head lift, then a second blink at rest.
+cat_poses=[(.57,.22),(.10,.54),(.58,.93),(1,1),(1,.86),(1,.65),(1,.44),
+           (.62,.28),(.12,.16),(.58,.07),(.92,.02)]
+for i,(blink,up) in enumerate(cat_poses):
+    lift=Matrix.Translation(Vector((0,-.011,.075))*up)
+    pitch=Matrix.Rotation(-.093*up,4,'X')
+    pose=lift@Matrix.Translation(head_center)@pitch@Matrix.Translation(-head_center)
+    for obj,m in neutral.items():
+        tr=m
+        if obj.name.startswith("Cat dot eye"):
+            tr=m@Matrix.Diagonal(Vector((1+.14*(1-blink),1,blink,1)))
+        obj.matrix_world=pose@tr
+    render(f"cat_{i:02d}",bounds["cat"])
+for obj,m in neutral.items():obj.matrix_world=m
+
+for o in geom:o.hide_render=True
+scene.render.film_transparent=True
+scene.cycles.samples=max(32,samples//2)
+scene.cycles.adaptive_threshold=.021
+for key,obj in targets.items():
+    obj.hide_render=False
+    render(key,bounds[key])
+    obj.hide_render=True
+for i,group in enumerate(balloons):
+    for o in group:o.hide_render=False
+    render(f"balloon_{i}",bounds[f"balloon_{i}"])
+    for o in group:o.hide_render=True
+for key,obj in plants.items():
+    obj.hide_render=False
+    leaves={p:p.matrix_world.copy() for p in obj.instance_collection.objects if "leaf_joint" in p}
+    # Each leaf rotates around its end of the stem with a staggered start, different
+    # pitch and flex, plus a tiny radial twist. Soil, stems and pot never move.
+    for frame in range(17):
+        at=frame/20
+        for leaf,m in leaves.items():
+            j=leaf["leaf_joint"]
+            joint=Vector(leaf["leaf_root"])
+            origin=Matrix.Translation(joint)
+            t=max(0,at-(j%4)*.024)
+            amp=(.21+(j%3)*.064)*math.exp(-t*5.2)*math.sin(t*(17.8+j*.63)) if t>0 else 0
+            if j%3==1:amp*=-1
+            amp*=max(0.0,min(1.0,(.80-at)/.17))
+            bend=Matrix.Rotation(amp,4,Vector(leaf["leaf_axis"]))
+            twist=Matrix.Rotation(amp*.34,4,Vector(leaf["leaf_direction"]))
+            leaf.matrix_world=origin@twist@bend@Matrix.Translation(-joint)@m
+        render(f"{key}_{frame:02d}",bounds[key])
+    for leaf,m in leaves.items():leaf.matrix_world=m
+    obj.hide_render=True
