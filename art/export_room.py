@@ -80,6 +80,14 @@ def render(name,box=None):
 
 for o in geom:o.hide_render=o in animated
 scene.render.film_transparent=False
+# Final sharper plate: bake more pixels in the exact same camera, without
+# the live models. The bear stays in secondary rays to keep its contact shadow.
+if os.environ.get("PURRLOCK_HD_PLATE")=="1":
+    assert os.environ.get("PURRLOCK_REFRESH_BACKGROUND_ONLY")=="1"
+    scene.render.resolution_percentage=200
+    for o in geom:
+        if o.name.startswith(("Plush bear • ","Bear • ")):
+            o.visible_camera=False
 scene.cycles.samples=samples
 render("room")
 if os.environ.get("PURRLOCK_REFRESH_BACKGROUND_ONLY")=="1":
@@ -92,7 +100,7 @@ scene.cycles.adaptive_threshold=.021
 for key,obj in targets.items():
     obj.hide_render=False
     if key=="fork":
-        scene.render.resolution_percentage=200
+        scene.render.resolution_percentage=400
         render(key,bounds[key])
         scene.render.resolution_percentage=100
     else:

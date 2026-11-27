@@ -3,6 +3,8 @@ extends Control
 const TEDDY := preload("res://game/room_teddy.gd")
 const CAT := preload("res://game/room_cat.gd")
 const BACKDROP := preload("res://assets/room.webp")
+const FORK_DETAIL := preload("res://assets/fork-detail.png")
+const FORK_SHADOW := preload("res://assets/fork-shadow.png")
 const ATLAS := preload("res://assets/tea-sprites.webp")
 const ART := preload("res://game/tea_frames.gd")
 const FRAMES := ART.FRAMES
@@ -284,12 +286,15 @@ func _draw() -> void:
 		var sprite: AtlasTexture=sprites[key]
 		var center:=_prop_center(key)
 		var d:=sprite.get_size()*f*_zoom(key)
-		if shadow:
+		if key=="fork":
+			var shade_size:=d+Vector2(12,12)*f*_zoom(key)
+			draw_texture_rect(FORK_SHADOW,Rect2(center-shade_size*.5,shade_size),false)
+		elif shadow:
 			var width:=d.x*.86
 			var skid:=Vector2(width,maxf(5.0,width*.31))
 			var bottom:=center+Vector2(0,d.y*.29)
 			draw_texture_rect(shadow,Rect2(bottom-skid*.5,skid),false,Color(1,1,1,.54))
-		draw_texture_rect(sprite,Rect2(center-d*.5,d),false)
+		draw_texture_rect(FORK_DETAIL if key=="fork" else sprite,Rect2(center-d*.5,d),false)
 
 func _clip_frame(key: String) -> String:
 	var age: float=decor.get(key,-1.0)
@@ -395,7 +400,7 @@ func _draw_flight(key: String) -> void:
 		p=lift.bezier_interpolate(lift+Vector2((aperture.x-lift.x)*.26,-40),aperture+Vector2((lift.x-aperture.x)*.26,-73),aperture,t*t*(3.0-2.0*t))
 		zoom=lerpf(1.12,.12,t*t)
 	var d:=sprite.get_size()*float(flight.factor)*zoom
-	hud_layer.draw_texture_rect(sprite,Rect2(p-d*.5,d),false,Color(1,1,1,1.0-smoothstep(.83,1.0,t) if age>=LIFT else 1.0))
+	hud_layer.draw_texture_rect(FORK_DETAIL if key=="fork" else sprite,Rect2(p-d*.5,d),false,Color(1,1,1,1.0-smoothstep(.83,1.0,t) if age>=LIFT else 1.0))
 
 func _hint_target() -> void:
 	hint_key=""

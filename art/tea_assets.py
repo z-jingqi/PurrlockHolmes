@@ -1,5 +1,5 @@
 """Reusable Blender collection assets for the Afternoon Tea set. Z-up, feet at z=0."""
-import bpy, math
+import bmesh, bpy, math
 from mathutils import Vector
 TAU=math.tau
 
@@ -36,7 +36,7 @@ class Studio:
         self.rose=glaze("Tea • blush rim","cc887f")
         self.honey=glaze("Tea • tea stain accent","c89965",.32)
         self.tea=glaze("Tea • amber infusion","a36c49",.20)
-        self.steel=glaze("Tea • satin silver","bcc7ca",.40,.44)
+        self.steel=glaze("Tea • satin stainless steel","d5d6d7",.26,1.0)
         self.gray=glaze("Tea • low contrast engraving","adbbbf",.49,.30)
 
     def mesh(self,name,verts,faces,material):
@@ -111,14 +111,56 @@ class Studio:
     def band(self,name,r,z,w,mat):
         return self.lathe(name,[(r-.001,z-w),(r+.005,z-w*.55),(r+.006,z+w*.55),(r-.003,z+w)],mat,3,cap=False)
 
-    def cut(self,name,outline,thickness,mat,r=.008):
-        v=[(x,y,.005) for x,y in outline]+[(x,y,thickness) for x,y in outline]; n=len(outline)
-        faces=[tuple(range(n-1,-1,-1)),tuple(range(n,2*n))]
-        faces += [(i,(i+1)%n,(i+1)%n+n,i+n) for i in range(n)]
-        obj=self.mesh(name,v,faces,mat)
-        for p in obj.data.polygons:p.use_smooth=False
-        bev=obj.modifiers.new("Soft stamped edge","BEVEL");bev.width=r;bev.segments=3
-        obj.modifiers.new("Even highlights","WEIGHTED_NORMAL")
+    def fork(self):
+        # Four connected bands follow the curvature of a single stamping.
+        # They share vertices through the shank, separating only at the slots.
+        def ease(x,lo,hi):
+            t=max(0,min(1,(x-lo)/(hi-lo)))
+            return t*t*(3-2*t)
+
+        def half_width(y):
+            return (.056+.010*ease(y,-.448,-.412)-.034*ease(y,-.40,-.094)
+                    +.084*ease(y,-.008,.174))
+
+        bm=bmesh.new();weld={}
+        rows=112; cols=6
+        start,tip=-.448,.478
+        for finger in range(4):
+            rows_here=[]
+            for j in range(rows+1):
+                v=start+(tip-start)*j/rows
+                y=v-.021*abs(finger-1.5)*ease(v,.245,tip)
+                w=half_width(v)
+                slot=ease(v,.229,.304)
+                band_center=(finger-1.5)*w*.5
+                reach=w*.25*(1-.34*slot)*(1-.66*ease(v,tip-.023,tip))
+                row=[]
+                for k in range(cols+1):
+                    u=2*k/cols-1
+                    x=band_center+u*reach
+                    spine=(.024+.019*ease(y,-.431,-.116)+.083*ease(y,-.075,.163)
+                           -.026*ease(y,.167,.331)+.027*ease(y,.306,.475))
+                    grip=.009*(1-ease(y,.013,.122))*(1-min(1,(x/max(w,.01))**2))
+                    scoop=.012*ease(y,.064,.184)*(1-ease(y,.242,.311))*(x/w)**2
+                    rounded=.0031*slot*(1-u*u)
+                    z=spine+grip+scoop+rounded
+                    key=tuple(round(f,7) for f in (x,y,z))
+                    if key not in weld:weld[key]=bm.verts.new((x,y,z))
+                    row.append(weld[key])
+                if j:
+                    prev=rows_here[-1]
+                    for k in range(cols):
+                        bm.faces.new((prev[k],prev[k+1],row[k+1],row[k]))
+                rows_here.append(row)
+        mesh=bpy.data.meshes.new("Curved four-tine stamping")
+        bm.to_mesh(mesh);bm.free();mesh.update()
+        obj=bpy.data.objects.new("Swept steel handle, neck and scooped tines",mesh)
+        self.collection.objects.link(obj);mesh.materials.append(self.steel)
+        for f in mesh.polygons:f.use_smooth=True
+        solid=obj.modifiers.new("Real steel stock thickness","SOLIDIFY")
+        solid.thickness=.017;solid.offset=-1
+        bevel=obj.modifiers.new("Polished edges","BEVEL")
+        bevel.width=.0030;bevel.segments=3;bevel.angle_limit=.53
         return obj
 
     def dish(self,r,material,rim,wave=0):
@@ -150,14 +192,7 @@ class Studio:
             self.lathe("Seated lid with glaze line",[(.002,.591),(.216,.591),(.243,.609),(.246,.626),(.223,.647),(.158,.676),(.002,.686)],self.sky)
             self.el("Rounded porcelain finial",(0,0,.718),(.071,.071,.044),self.ivory)
         elif key=="fork":
-            # Single stamped profile prevents dark seams between shoulder and tines.
-            outline=[(-.060,-.448),(.055,-.448),(.068,-.410),(.048,-.241),(.030,-.059),(.042,.093),(.115,.181)]
-            for j,x in enumerate([.089,.030,-.030,-.089]):
-                tip=.433-.016*abs(j-1.5)
-                outline += [(x+.024,.267),(x+.018,tip-.027),(x+.012,tip),(x-.012,tip),
-                            (x-.019,tip-.025),(x-.025,.253 if j<3 else .187)]
-            outline += [(-.111,.166),(-.044,.087),(-.030,-.054),(-.043,-.245),(-.069,-.406)]
-            self.cut("Single stamped handle, shoulder and four tines",outline,.028,self.steel,.005)
+            self.fork()
         collection.asset_mark()
         collection.asset_data.description=details
         for tag in ['Purrlock Holmes','Tableware','Afternoon Tea']:collection.asset_data.tags.new(tag)
@@ -172,7 +207,7 @@ def tea_set():
       ("cup","Tea · Celadon cup","Hollow glazed porcelain, sculpted foot and pulled handle."),
       ("saucer","Tea · Porcelain saucer","Ivory glaze, low rim and celadon hairline."),
       ("plate","Tea · Petal plate","Shallow dessert plate with a subtle scalloped edge."),
-      ("fork","Tea · Satin dessert fork","Four tapered tines and a soft stamped grip."),
+      ("fork","Tea · Satin dessert fork","Curved stainless steel with a raised neck, scooped head and four tapered tines."),
       ("bowl","Tea · Blush bowl","Hollow scalloped porcelain with a fitted footring."),
       ("teapot","Tea · Moon teapot","Separate glazed lid, swept handle and an open pouring spout.")
     ]}

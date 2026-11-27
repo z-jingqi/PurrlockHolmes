@@ -4,7 +4,7 @@ const FRAMES := {
 	"saucer": [Rect2(3,3,66,43),Vector2(498,425)],
 	"cup": [Rect2(75,3,47,48),Vector2(508,410)],
 	"plate": [Rect2(128,3,86,58),Vector2(516,476)],
-	"fork": [Rect2(220,3,67,32),Vector2(581,520)],
+	"fork": [Rect2(448,665,69,38),Vector2(581,514)],
 	"bowl": [Rect2(293,3,59,48),Vector2(825,349)],
 	"teapot": [Rect2(358,3,98,74),Vector2(890,336)],
 	"balloon_0": [Rect2(462,3,62,70),Vector2(950,456)],

@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from PIL import Image,ImageFilter
+from fork_shadow import make_shadow
 
 ROOT=Path(__file__).resolve().parents[1]
 p=argparse.ArgumentParser(description=__doc__)
@@ -42,7 +43,8 @@ def pack(key,group,fix_size=False,thumbnail=False):
     im=Image.open(args.stage/(key+".png")).convert("RGBA")
     expected=(right-left,bottom-top)
     if key=="fork":
-        assert im.size==tuple(x*2 for x in expected)
+        assert im.size==tuple(x*4 for x in expected)
+        original=im
         im=im.resize(expected,Image.Resampling.LANCZOS)
     assert im.size==expected,(key,im.size,layout["bounds"][group])
     if fix_size:
@@ -53,6 +55,11 @@ def pack(key,group,fix_size=False,thumbnail=False):
         l,t,r,b=bounds
         l=max(0,l-2);t=max(0,t-2);r=min(im.width,r+2);b=min(im.height,b+2)
         part=im.crop((l,t,r,b))
+        if key=="fork":
+            fork=original.crop(tuple(v*4 for v in (l,t,r,b))).resize(
+                ((r-l)*2,(b-t)*2),Image.Resampling.LANCZOS)
+            fork.save(assets/"fork-detail.png",optimize=True)
+            make_shadow(fork,assets/"fork-shadow.png")
         left+=l;top+=t
     if x+part.width+3>atlas.width:
         x=3;y+=row+6;row=0
