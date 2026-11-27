@@ -7,14 +7,19 @@ const FORK_DETAIL := preload("res://assets/fork-detail.png")
 const FORK_SHADOW := preload("res://assets/fork-shadow.png")
 const ATLAS := preload("res://assets/tea-sprites.webp")
 const ART := preload("res://game/tea_frames.gd")
-const FRAMES := ART.FRAMES
+const CASE_ATLAS := preload("res://assets/case01-discoveries.webp")
+const CASE_ART := preload("res://game/case01_discovery_frames.gd")
+const LEVEL_VIEW := preload("res://game/level_view.gd")
 const CLIPS := ART.CLIPS
 const MARKERS := ART.MARKERS
 const BOX := preload("res://assets/paw-box.svg")
 const HINT_RAY := preload("res://assets/hint-ray.png")
 const UI_FONT := preload("res://game/ui-zh.otf")
-const TARGETS := ["saucer","cup","plate","fork","bowl","teapot"]
-const DRAW_ORDER := ["bowl","teapot","saucer","cup","plate","fork"]
+# Start with visible targets, then items elsewhere, then fair two-step discoveries.
+const TARGETS := ["saucer","cup","plate","fork","bowl","teapot","creamer","butter_knife","teaspoon","egg_cup"]
+const DRAW_ORDER := ["bowl","teapot","creamer","saucer","cup","plate","fork","butter_knife","teaspoon","egg_cup"]
+const COVERS := {"teaspoon":"napkin_cover","egg_cup":"tin_lid"}
+const COVER_ANIM := .46
 const PLANTS := ["rubber_plant","lance_plant"]
 const BALLOONS := ["balloon_0","balloon_1","balloon_2"]
 const COTTON_WARM := Color("#9e8062bb")
@@ -23,6 +28,8 @@ const CORD_DRAPE := [Vector2(-11.0,5.5),Vector2(-9.4,6.8),Vector2(-7.0,9.2)]
 const CUP_SETTLE := .27
 const CATEGORY := "餐具"
 const RENDER_SIZE := Vector2(1200,896)
+# Use the designed footprint, not viewport pixels or upscaled raster resolution.
+const CASE_MAP_FOOTPRINT := Vector2(1080,675)
 const TOP := 76.0
 const FOOTER := 94.0
 const LIFT := .14
@@ -38,6 +45,17 @@ var balloon_tapped := -1
 var decor: Dictionary={}
 var sprites: Dictionary={}
 var atlas_image: Image
+var case_atlas_image: Image
+var frames: Dictionary
+var cover_age: Dictionary={}
+var camera_zoom:=1.0
+var touches: Dictionary={}
+var pinching:=false
+var pinch_dist:=0.0
+var pinch_center:=Vector2.ZERO
+var zoom_in: Button
+var zoom_out: Button
+var zoom_percent: Label
 var shadow: GradientTexture2D
 var taken: Dictionary={}
 var flights: Dictionary={}
@@ -72,10 +90,13 @@ func _ready() -> void:
 	hud_layer.draw.connect(_draw_hud)
 	add_child(hud_layer)
 	atlas_image=ATLAS.get_image()
-	for key in FRAMES:
+	case_atlas_image=CASE_ATLAS.get_image()
+	frames=ART.FRAMES.duplicate()
+	frames.merge(CASE_ART.FRAMES)
+	for key in frames:
 		var sprite:=AtlasTexture.new()
-		sprite.atlas=ATLAS
-		sprite.region=FRAMES[key][0]
+		sprite.atlas=CASE_ATLAS if CASE_ART.FRAMES.has(key) else ATLAS
+		sprite.region=frames[key][0]
 		sprite.filter_clip=true
 		sprites[key]=sprite
 	shadow=GradientTexture2D.new()
@@ -121,20 +142,72 @@ func _end(id: int,at: Vector2,canceled: bool) -> void:
 
 func _notification(what:int) -> void:
 	if what==NOTIFICATION_WM_WINDOW_FOCUS_OUT:
+		touches.clear()
+		pinching=false
+		pinch_dist=0.0
 		pointer=-2
 		pending_tap=Vector2(-1,-1)
 
+func _max_zoom() -> float:
+	return LEVEL_VIEW.zoom_cap_for(CASE_MAP_FOOTPRINT)
+
+func _set_zoom(value: float, anchor: Vector2, destination: Vector2) -> void:
+	var room_point:=(anchor-_origin())/_scale()
+	camera_zoom=clampf(value,1.0,_max_zoom())
+	pan=Vector2.ZERO
+	pan=destination-_origin()-room_point*_scale()
+	_clamp_pan()
+	_refresh_zoom_ui()
+	_redraw()
+
+func _touch_pinch() -> void:
+	var fingers:=touches.values()
+	if fingers.size()!=2:
+		pinch_dist=0
+		return
+	var a: Vector2=fingers[0]
+	var b: Vector2=fingers[1]
+	var center:=(a+b)*.5
+	var distance:=maxf(12.0,a.distance_to(b))
+	if pinch_dist>0:
+		_set_zoom(camera_zoom*distance/pinch_dist,pinch_center,center)
+	pinch_center=center
+	pinch_dist=distance
+
 func _input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.device!=InputEvent.DEVICE_ID_EMULATION and event.button_index==MOUSE_BUTTON_LEFT:
-		if event.pressed: _begin(-1,event.position)
-		else: _end(-1,event.position,event.canceled)
+	if event is InputEventMouseButton and event.device!=InputEvent.DEVICE_ID_EMULATION:
+		if event.pressed and event.button_index in [MOUSE_BUTTON_WHEEL_UP,MOUSE_BUTTON_WHEEL_DOWN] and _field().has_point(event.position):
+			var step:=1.13 if event.button_index==MOUSE_BUTTON_WHEEL_UP else 1.0/1.13
+			_set_zoom(camera_zoom*step,event.position,event.position)
+			get_viewport().set_input_as_handled()
+		elif event.button_index==MOUSE_BUTTON_LEFT:
+			if event.pressed:_begin(-1,event.position)
+			else:_end(-1,event.position,event.canceled)
+	elif event is InputEventMagnifyGesture and _field().has_point(event.position):
+		_set_zoom(camera_zoom*event.factor,event.position,event.position)
+		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseMotion and event.device!=InputEvent.DEVICE_ID_EMULATION:
 		_move(-1,event.position)
 	elif event is InputEventScreenTouch:
-		if event.pressed and not event.canceled: _begin(event.index,event.position)
-		else: _end(event.index,event.position,event.canceled)
-	elif event is InputEventScreenDrag:
-		_move(event.index,event.position)
+		if event.pressed and not event.canceled:
+			if not _field().has_point(event.position):return
+			touches[event.index]=event.position
+			if touches.size()>=2:
+				pinching=true
+				pointer=-2
+				pending_tap=Vector2(-1,-1)
+				_touch_pinch()
+			elif not pinching:_begin(event.index,event.position)
+		elif touches.has(event.index):
+			touches.erase(event.index)
+			if pinching:
+				pinch_dist=0
+				if touches.is_empty():pinching=false
+			else:_end(event.index,event.position,event.canceled)
+	elif event is InputEventScreenDrag and touches.has(event.index):
+		touches[event.index]=event.position
+		if pinching:_touch_pinch()
+		else:_move(event.index,event.position)
 
 func _label(s: String,sz: int,pos: Vector2) -> Label:
 	var l:=Label.new()
@@ -171,7 +244,14 @@ func _button_skin(button: Button) -> void:
 func _build_ui() -> void:
 	_label("福尔猫斯",28,Vector2(18,7))
 	_label("案卷 01  ·  茶点过后",14,Vector2(19,45))
-	progress=_label("餐具   0/6",17,Vector2.ZERO)
+	progress=_label("",17,Vector2.ZERO)
+	zoom_out=_button("-",func():_zoom_step(1.0/1.20))
+	zoom_in=_button("+",func():_zoom_step(1.20))
+	zoom_percent=_label("100%",13,Vector2.ZERO)
+	for button in [zoom_out,zoom_in]:
+		_button_skin(button)
+		button.custom_minimum_size=Vector2(38,34)
+		button.size=button.custom_minimum_size
 	var restart:=_button("重来",func():get_tree().reload_current_scene())
 	hint_button=_button("提示",_hint_target)
 	for button in [restart,hint_button]:
@@ -193,7 +273,7 @@ func _build_ui() -> void:
 	var stack:=VBoxContainer.new()
 	stack.add_theme_constant_override("separation",10)
 	win.add_child(stack)
-	for copy in [["茶点收好啦",23],["六件餐具都找齐了",14]]:
+	for copy in [["茶点收好啦",23],["餐具都找齐了",14]]:
 		var l:=Label.new()
 		l.text=copy[0]
 		l.horizontal_alignment=HORIZONTAL_ALIGNMENT_CENTER
@@ -213,9 +293,23 @@ func _build_ui() -> void:
 		_clamp_pan()
 		restart.position=Vector2(14,size.y-64)
 		hint_button.position=Vector2(size.x-86,size.y-64)
+		zoom_out.position=Vector2(size.x-128,21)
+		zoom_in.position=Vector2(size.x-48,21)
+		_refresh_zoom_ui()
 		_refresh_progress()
 	resized.connect(fit)
 	fit.call()
+
+func _refresh_zoom_ui() -> void:
+	if not is_instance_valid(zoom_percent):return
+	zoom_percent.text="%d%%"%roundi(camera_zoom*100.0)
+	zoom_percent.position=Vector2(size.x-69-zoom_percent.get_minimum_size().x*.5,28)
+	zoom_out.disabled=camera_zoom<=1.001
+	zoom_in.disabled=camera_zoom>=_max_zoom()-.001
+
+func _zoom_step(step: float) -> void:
+	var anchor:=_field().get_center()
+	_set_zoom(camera_zoom*step,anchor,anchor)
 
 func _refresh_progress() -> void:
 	progress.text="%s   %d/%d"%[CATEGORY,taken.size(),TARGETS.size()]
@@ -232,7 +326,7 @@ func _field() -> Rect2:
 func _scale() -> float:
 	var d:=_field().size
 	# Portrait keeps a useful object size and pans the same image horizontally.
-	return maxf(d.x/RENDER_SIZE.x,d.y/RENDER_SIZE.y)*1.04
+	return maxf(d.x/RENDER_SIZE.x,d.y/RENDER_SIZE.y)*1.04*camera_zoom
 
 func _origin() -> Vector2:
 	var field:=_field()
@@ -257,7 +351,11 @@ func _redraw() -> void:
 	if hud_layer:hud_layer.queue_redraw()
 
 func _start_pixel(key: String) -> Vector2:
-	var pixel: Vector2=FRAMES[key][1]
+	var pixel: Vector2=frames[key][1]
+	if key=="egg_cup" and cover_age.has("tin_lid") and not _available(key):
+		# As the lid lifts, the egg cup hops to the exposed spot next to the tin.
+		var t:=smoothstep(.14,1.0,float(cover_age["tin_lid"])/COVER_ANIM)
+		pixel+=Vector2(30.0*(1.0-t),-26.0*(1.0-t)-23.0*sin(t*PI))
 	if key=="cup" and cup_age>=0:
 		var t:=minf(cup_age/CUP_SETTLE,1.0)
 		# A very short authored settle: this level no longer requires a 3D world.
@@ -284,6 +382,8 @@ func _draw() -> void:
 	_draw_balloon_bunch(f)
 	for key in DRAW_ORDER:
 		if not sprites.has(key) or taken.has(key) or flights.has(key):continue
+		if not _available(key) and key!="teaspoon":
+			if key!="egg_cup" or float(cover_age.get("tin_lid",0))<COVER_ANIM*.14:continue
 		if key==hint_key:_draw_hint(key)
 		var sprite: AtlasTexture=sprites[key]
 		var center:=_prop_center(key)
@@ -297,6 +397,41 @@ func _draw() -> void:
 			var bottom:=center+Vector2(0,d.y*.29)
 			draw_texture_rect(shadow,Rect2(bottom-skid*.5,skid),false,Color(1,1,1,.54))
 		draw_texture_rect(FORK_DETAIL if key=="fork" else sprite,Rect2(center-d*.5,d),false)
+	_draw_discovery("tin_base",f)
+	for cover: String in ["napkin_cover","tin_lid"]:
+		if _key_is_hint(cover):_draw_hint(cover)
+		_draw_discovery(cover,f)
+
+func _key_is_hint(key: String) -> bool:
+	return hint_key==key and not cover_age.has(key)
+
+func _available(key: String) -> bool:
+	return not COVERS.has(key) or float(cover_age.get(COVERS[key],-1.0))>=COVER_ANIM
+
+func _cover_pose(key: String) -> Vector3:
+	var raw:=clampf(float(cover_age.get(key,0.0))/COVER_ANIM,0.0,1.0)
+	var t:=smoothstep(0.0,1.0,raw)
+	var lift:=sin(raw*PI)
+	if key=="napkin_cover":return Vector3(-44*t,5*t-12*lift,-.19*t)
+	if key=="tin_lid":
+		if not cover_age.has(key):
+			# The pull and offset lip are still readable with audio muted.
+			var rattle:=smoothstep(.0,.14,fmod(elapsed+1.7,6.2))*(1.0-smoothstep(.20,.43,fmod(elapsed+1.7,6.2)))
+			return Vector3(2.3,-1.5-rattle*1.4,.034+rattle*.05*sin(elapsed*47.0))
+		return Vector3(lerpf(2.3,34.0,t),lerpf(-1.5,27.0,t)-21*lift,lerpf(.034,.22,t))
+	return Vector3.ZERO
+
+func _draw_discovery(key: String,f: float) -> void:
+	var spr: AtlasTexture=sprites[key]
+	var d:=spr.get_size()*f
+	var pose:=_cover_pose(key)
+	var c:=_prop_center(key)+Vector2(pose.x,pose.y)*f
+	var skid:=Vector2(d.x*.87,maxf(f*4,d.y*.24))
+	if key!="tin_lid" or float(cover_age.get(key,-1.0))>=COVER_ANIM:
+		draw_texture_rect(shadow,Rect2(c+Vector2(0,d.y*.32)-skid*.5,skid),false,Color(1,1,1,.4))
+	draw_set_transform(c,pose.z,Vector2.ONE)
+	draw_texture_rect(spr,Rect2(-d*.5,d),false)
+	draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
 
 func _clip_frame(key: String) -> String:
 	var age: float=decor.get(key,-1.0)
@@ -308,7 +443,7 @@ func _draw_decor(f: float) -> void:
 		var frame:=_clip_frame(key)
 		if frame.is_empty():continue
 		var spr: AtlasTexture=sprites[frame]
-		var p: Vector2=FRAMES[frame][1]
+		var p: Vector2=frames[frame][1]
 		draw_texture_rect(spr,Rect2(_origin()+p*f,spr.get_size()*f),false)
 
 func _balloon_pose(index: int) -> Vector3:
@@ -331,7 +466,7 @@ func _balloon_pose(index: int) -> Vector3:
 
 func _balloon_geometry(index: int,pose: Vector3) -> Array[Vector2]:
 	var key: String=BALLOONS[index]
-	var center: Vector2=FRAMES[key][1]+FRAMES[key][0].size*.5
+	var center: Vector2=frames[key][1]+frames[key][0].size*.5
 	var tip: Vector2=MARKERS[key]
 	var displaced:=center+Vector2(pose.x,pose.y)
 	return [displaced,displaced+(tip-center).rotated(pose.z)]
@@ -423,7 +558,7 @@ func _hint_target() -> void:
 		var i:=(hint_next+offset)%TARGETS.size()
 		var key: String=TARGETS[i]
 		if taken.has(key) or flights.has(key):continue
-		hint_key=key
+		hint_key=key if _available(key) else str(COVERS[key])
 		hint_next=(i+1)%TARGETS.size()
 		break
 	if hint_key.is_empty():return
@@ -452,11 +587,12 @@ func _draw_hint(key: String) -> void:
 	draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
 
 func _art_alpha(key: String,rel: Vector2,threshold := .22) -> bool:
-	var bounds: Rect2=FRAMES[key][0]
-	return Rect2(Vector2.ZERO,bounds.size).has_point(rel) and atlas_image.get_pixelv(Vector2i(bounds.position+rel)).a>threshold
+	var bounds: Rect2=frames[key][0]
+	var source:=case_atlas_image if CASE_ART.FRAMES.has(key) else atlas_image
+	return Rect2(Vector2.ZERO,bounds.size).has_point(rel) and source.get_pixelv(Vector2i(bounds.position+rel)).a>threshold
 
 func _alpha_hit(key: String,pixel: Vector2) -> bool:
-	var bounds: Rect2=FRAMES[key][0]
+	var bounds: Rect2=frames[key][0]
 	var rel:=(pixel-_start_pixel(key)-bounds.size*.5)/_zoom(key)+bounds.size*.5
 	return _art_alpha(key,rel)
 
@@ -464,8 +600,8 @@ func _decor_at(pixel: Vector2) -> String:
 	if cat.contains(pixel):return "cat"
 	for key in PLANTS:
 		var frame:=_clip_frame(key)
-		var top: Vector2=FRAMES[frame][1]
-		var d: Vector2=FRAMES[frame][0].size
+		var top: Vector2=frames[frame][1]
+		var d: Vector2=frames[frame][0].size
 		# Do not turn the pot/soil into another button. Only the green silhouette reacts.
 		var rel:=pixel-top
 		if rel.y<d.y*.77 and _art_alpha(frame,rel,.26):return key
@@ -473,7 +609,7 @@ func _decor_at(pixel: Vector2) -> String:
 		var pose:=_balloon_pose(i)
 		var key: String=BALLOONS[i]
 		var center:=_balloon_geometry(i,pose)[0]
-		var rel: Vector2=(pixel-center).rotated(-pose.z)+FRAMES[key][0].size*.5
+		var rel: Vector2=(pixel-center).rotated(-pose.z)+frames[key][0].size*.5
 		if _art_alpha(key,rel,.26):return key
 	return ""
 
@@ -481,7 +617,7 @@ func _item_at(pixel: Vector2,tolerance := true) -> String:
 	# Match the actual alpha silhouette. Topmost object wins, e.g. cup over saucer.
 	for i in range(DRAW_ORDER.size()-1,-1,-1):
 		var key: String=DRAW_ORDER[i]
-		if not taken.has(key) and not flights.has(key) and _alpha_hit(key,pixel):return key
+		if _available(key) and not taken.has(key) and not flights.has(key) and _alpha_hit(key,pixel):return key
 	if tolerance:
 		for offset: Vector2 in [Vector2(3,0),Vector2(-3,0),Vector2(0,3),Vector2(0,-3)]:
 			var key:=_item_at(pixel+offset,false)
@@ -490,6 +626,13 @@ func _item_at(pixel: Vector2,tolerance := true) -> String:
 
 func _pick_scene(pixel: Vector2) -> void:
 	if win.visible:return
+	# The visible tip of the spoon is a clue, not a clickable hidden target.
+	for target: String in COVERS:
+		var cover: String=COVERS[target]
+		if cover_age.has(cover):continue
+		if _alpha_hit(cover,pixel) or (cover=="tin_lid" and _alpha_hit("tin_base",pixel)) or (target=="teaspoon" and _alpha_hit(target,pixel)):
+			_reveal(cover)
+			return
 	var key:=_item_at(pixel)
 	if not key.is_empty():
 		_take(key)
@@ -503,8 +646,13 @@ func _pick_scene(pixel: Vector2) -> void:
 	elif not decor.has(prop):
 		decor[prop]=0.0
 
+func _reveal(cover: String) -> void:
+	cover_age[cover]=0.0
+	if hint_key==cover:hint_key=""
+	_redraw()
+
 func _take(key: String) -> void:
-	if taken.has(key) or flights.has(key):return
+	if not _available(key) or taken.has(key) or flights.has(key):return
 	flights[key]={"age":0.0,"source":_prop_center(key),"factor":_scale(),"zoom":_zoom(key)}
 	if hint_key==key:hint_key=""
 	if key=="saucer" and not taken.has("cup") and not flights.has("cup"):
@@ -523,6 +671,8 @@ func _process(dt: float) -> void:
 			bump=1.0
 			_refresh_progress()
 	elapsed+=dt
+	for key in cover_age:
+		cover_age[key]=minf(COVER_ANIM,float(cover_age[key])+dt)
 	if cup_age>=0 and cup_age<CUP_SETTLE:cup_age=minf(cup_age+dt,CUP_SETTLE)
 	for key in decor.keys():
 		decor[key]+=dt
@@ -547,7 +697,7 @@ func _test(condition: bool,message: String) -> void:
 		test_fail=true
 
 func _tap_point(key: String) -> Dictionary:
-	var d: Vector2=FRAMES[key][0].size
+	var d: Vector2=frames[key][0].size
 	var corner:=_start_pixel(key)
 	var center:=corner+d*.5
 	var whole:=0
@@ -567,15 +717,47 @@ func _tap_point(key: String) -> Dictionary:
 				point=test_pixel
 	return {"ratio":float(visible)/maxi(whole,1),"point":point}
 
+func _test_zoom_gesture(anchor: Vector2) -> void:
+	var left:=InputEventScreenTouch.new()
+	var right:=InputEventScreenTouch.new()
+	left.index=1;left.position=anchor-Vector2(28,0);left.pressed=true
+	right.index=2;right.position=anchor+Vector2(28,0);right.pressed=true
+	_input(left);_input(right)
+	var spread:=InputEventScreenDrag.new()
+	spread.index=2;spread.position=anchor+Vector2(74,0)
+	_input(spread)
+	_test(camera_zoom>1.55 and pointer==-2,"Pinch was interpreted as a tap or single-finger drag")
+	right.position=spread.position;right.pressed=false;left.pressed=false
+	_input(right);_input(left)
+	_test(not pinching and pending_tap.x<0,"Pinch release generated a selection")
+	_set_zoom(1.0,anchor,anchor)
+
 func _test_frame() -> void:
 	if ticks==10:
 		_test(teddy.visible_mesh_count()>=18,"Teddy is missing its 3D geometry")
 		_test(teddy.model_pin().distance_to(MARKERS["tether"])<.15,"The balloon tether drifted from the 3D bear")
 		for key in TARGETS:
-			_test(_tap_point(key).ratio>=.25,"Insufficient visible area: "+key)
+			if COVERS.has(key):
+				_test(_tap_point(key).ratio==0,"Hidden target selectable before reveal: "+key)
+			else:
+				_test(_tap_point(key).ratio>=.25,"Insufficient visible area: "+key)
 		_hint_target()
 		_test(hint_key in TARGETS and taken.is_empty(),"Hint must not collect a target")
-		var fixed: Vector2=FRAMES["plate"][1]
+		hint_next=TARGETS.find("teaspoon")
+		_hint_target()
+		_test(hint_key=="napkin_cover" and not _available("teaspoon"),"Hidden-item hint must point to the cover")
+		hint_key=""
+		_zoom_step(.5)
+		_test(is_equal_approx(camera_zoom,1.0),"Zoom exceeded the minimum")
+		_test(LEVEL_VIEW.zoom_cap_for(CASE_MAP_FOOTPRINT*1.4)>_max_zoom(),"A larger map must support closer zoom")
+		var anchor:=_field().get_center()
+		var fixed_point:=(anchor-_origin())/_scale()
+		_set_zoom(9.0,anchor,anchor)
+		_test(is_equal_approx(camera_zoom,_max_zoom()),"Zoom exceeded its map limit")
+		_test(((anchor-_origin())/_scale()).distance_to(fixed_point)<.1,"Zoom did not preserve anchor")
+		_set_zoom(1.0,anchor,anchor)
+		_test_zoom_gesture(anchor)
+		var fixed: Vector2=frames["plate"][1]
 		pan+=Vector2(90,90)
 		_clamp_pan()
 		pan=Vector2.ZERO
@@ -590,8 +772,8 @@ func _test_frame() -> void:
 		_test(decor.has("cat"),"Cat did not react")
 		for plant in PLANTS:
 			var frame:=_clip_frame(plant)
-			var tile: Rect2=FRAMES[frame][0]
-			var start_at: Vector2=FRAMES[frame][1]
+			var tile: Rect2=frames[frame][0]
+			var start_at: Vector2=frames[frame][1]
 			var point:=Vector2(-1,-1)
 			for y in range(5,int(tile.size.y*.70),2):
 				for x in range(4,int(tile.size.x)-4,2):
@@ -620,6 +802,20 @@ func _test_frame() -> void:
 	for i in range(TARGETS.size()):
 		var phase:=24+i*63
 		var key: String=test_order[i]
+		if ticks==phase-30 and COVERS.has(key):
+			var cover: String=COVERS[key]
+			var rect: Rect2=frames[cover][0]
+			var corner: Vector2=frames[cover][1]
+			var found:=false
+			for iy in range(int(rect.size.y)):
+				for ix in range(int(rect.size.x)):
+					var pt:=corner+Vector2(ix,iy)
+					if _alpha_hit(cover,pt):
+						_pick_scene(pt)
+						found=true
+						break
+				if found:break
+			_test(cover_age.has(cover) and not flights.has(key),"Reveal did not open its cover: "+key)
 		if ticks==phase:
 			var candidate:=_tap_point(key)
 			_test(candidate.ratio>=.25,"Item became unclickable: "+key)
@@ -642,9 +838,9 @@ func _test_frame() -> void:
 			_test(taken.has(key) and progress.text.begins_with(CATEGORY),"Category changed or count failed: "+key)
 			if key=="saucer":
 				if taken.has("cup"):_test(cup_age<0,"A collected cup must not reappear")
-				else:_test(cup_age>=CUP_SETTLE and _start_pixel("cup").y>FRAMES["cup"][1].y+3,"Cup did not settle after its saucer was collected")
+				else:_test(cup_age>=CUP_SETTLE and _start_pixel("cup").y>frames["cup"][1].y+3,"Cup did not settle after its saucer was collected")
 			print("TEA_TEST ",key," count=",taken.size()," category=",CATEGORY)
-	if ticks==417:
+	if ticks==24+(TARGETS.size()-1)*63+60:
 		_test(taken.size()==TARGETS.size() and win.visible,"Missing end-of-level state")
 		print("TEA_TEST complete=",not test_fail)
 		get_tree().quit(1 if test_fail else 0)
