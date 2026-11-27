@@ -4,7 +4,7 @@ const ctx = canvas.getContext("2d");
 const found = new Map(), taken = new Set(), flying = new Map();
 const layer = document.getElementById("flight-layer"), liftCtx = layer.getContext("2d");
 const boxImg = document.getElementById("box");
-const atlas = new Image(), wrongArt = new Image(), wrongImage = new Image();
+const atlas = new Image(), wrongArt = new Image(), wrongImage = new Image(), hintRay = new Image();
 const hintButton = document.getElementById("hint");
 const wrongMoves = new Map();
 const TOTAL=7, HINT_TIME=3000, WRONG_TIME=300;
@@ -55,17 +55,25 @@ function drawHint(now) {
   const [x,y,w,h]=d.hint;
   const z=1+(.5+.5*Math.sin(age/1000*Math.PI*2*1.12))*.10*alpha;
   const W=w*scale*z, H=h*scale*z;
-  ctx.drawImage(atlas,x,y,w,h,c[0]-W/2,c[1]-H/2,W,H);
-  const radius=Math.hypot(W,H)/2+10, spin=age/1000*Math.PI*2*.53;
-  ctx.lineCap="round";
-  const at=(a,r)=>[c[0]+Math.cos(a)*r,c[1]+Math.sin(a)*r];
-  const ray=(start,end,color,width)=>{ctx.beginPath();ctx.moveTo(...start);ctx.lineTo(...end);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.stroke();};
-  for(let i=0;i<12;i++){
-    const a=spin+i*Math.PI/6, r=radius+(i%2?11:5), lo=at(a-.10,r-4), hi=at(a+.075,r+7);
-    ray(lo,hi,"#fab73440",5);
-    ray(lo,hi,"#ffce5deb",2);
-    ray(at(a+.082,r-5),at(a-.060,r+6),"#fff7dce6",1);
+  // Resting dimensions set the beam field; only the object breathes.
+  const radius=Math.min(110,Math.max(31,Math.max(w,h)*scale*1.24)), spin=age/1000*Math.PI*2*.42;
+  const ratios=[1.04,.76,1,.83,.92,.73,1];
+  ctx.save();
+  ctx.translate(...c);
+  for(let i=0;i<7;i++){
+    const a=spin+i*Math.PI*2/7, len=radius*ratios[i], width=Math.min(38,Math.max(13,len*.38));
+    ctx.save();
+    ctx.rotate(a);
+    ctx.globalAlpha=alpha*.94;
+    ctx.drawImage(hintRay,0,-width/2,len,width);
+    ctx.rotate(.20);
+    ctx.globalAlpha=alpha*.60;
+    ctx.drawImage(hintRay,0,-width*.25,len*.78,width*.5);
+    ctx.restore();
   }
+  ctx.restore();
+  ctx.globalAlpha=alpha;
+  ctx.drawImage(atlas,x,y,w,h,c[0]-W/2,c[1]-H/2,W,H);
   ctx.restore();
 }
 function setHint() {
@@ -182,7 +190,7 @@ const dataFrom=async path=>{const r=await fetch(path);if(!r.ok)throw Error("Miss
 Promise.all([
   load(art,"./assets/room.webp"),load(mask,"./assets/pick.png"),
   load(atlas,"./assets/pickups.webp?v=3"),dataFrom("./assets/pickups.json?v=3"),
-  load(wrongArt,"./assets/wrong.webp"),load(wrongImage,"./assets/wrong.png"),dataFrom("./assets/wrong.json")
+  load(wrongArt,"./assets/wrong.webp"),load(wrongImage,"./assets/wrong.png"),dataFrom("./assets/wrong.json"),load(hintRay,"./assets/hint-ray.png")
 ]).then(([, , , data, , , decoys])=>{
   props=data;wrongMeta=decoys;
   w=art.naturalWidth;h=art.naturalHeight;

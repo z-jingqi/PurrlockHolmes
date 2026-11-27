@@ -6,4 +6,5 @@ cp web/index.html web/style.css web/game.js dist/
 cp assets/room.webp assets/pick.png dist/assets/
 cp assets/pickups.webp assets/pickups.json assets/paw-box.svg dist/assets/
 cp assets/wrong.webp assets/wrong.png assets/wrong.json dist/assets/
+cp assets/hint-ray.png dist/assets/
 node tools/bundle-worker.mjs

@@ -12,6 +12,7 @@ const WRONG_ATLAS := preload("res://assets/wrong.webp")
 const WRONG := preload("res://assets/wrong_data.gd").ITEMS
 const WRONG_MASK := preload("res://assets/wrong.png")
 const HINT_SECONDS := 3.0
+const HINT_RAY := preload("res://assets/hint-ray.png")
 var mask: Image
 var wrong_mask: Image
 var shake: Dictionary = {}
@@ -253,19 +254,21 @@ func _draw_hint(origin: Vector2, f: float) -> void:
 	var sprite := _rect(data["hint"])
 	var breath := 1.0 + (.5 + .5*sin(hint_age*TAU*1.12)) * .10 * a
 	var dims := sprite.size*f*breath
+	# Beam size follows the resting prop, not the breathing curve.
+	var base := sprite.size * f
+	var radius := clampf(maxf(base.x,base.y)*1.24,31.0,110.0)
+	var spin := hint_age*TAU*.42
+	for i in range(7):
+		var angle := spin+float(i)*TAU/7.0
+		var length := radius * ([1.04,.76,1.0,.83,.92,.73,1.0][i] as float)
+		draw_set_transform(c,angle,Vector2.ONE)
+		var bloom := clampf(length*.38,13.0,38.0)
+		draw_texture_rect(HINT_RAY,Rect2(0,-bloom/2.0,length,bloom),false,Color(1,1,1,a*.94))
+		draw_set_transform(c,angle+.20,Vector2.ONE)
+		draw_texture_rect(HINT_RAY,Rect2(0,-bloom*.25,length*.78,bloom*.5),false,Color(1,1,1,a*.60))
+	draw_set_transform(Vector2.ZERO,0,Vector2.ONE)
+	# The item stays in front of the beam origin.
 	draw_texture_rect_region(ATLAS,Rect2(c-dims/2,dims),sprite,Color(1,1,1,a))
-	var radius := dims.length()/2.0+10
-	var twirl := hint_age*TAU*.53
-	for i in range(12):
-		var ang := twirl+i*TAU/12
-		var outer := radius + (5.0 if i%2 == 0 else 11.0)
-		var p := c+Vector2.from_angle(ang-.10)*(outer-4)
-		var q := c+Vector2.from_angle(ang+.075)*(outer+7)
-		var r := c+Vector2.from_angle(ang+.082)*(outer-5)
-		var k := c+Vector2.from_angle(ang-.060)*(outer+6)
-		draw_line(p,q,Color(1.0,.67,.20,a*.25),5.0,true)
-		draw_line(p,q,Color(1.0,.81,.36,a*.95),2.0,true)
-		draw_line(r,k,Color(1.0,.98,.84,a*.90),1.0,true)
 
 func _wrong_at(p: Vector2i) -> void:
 	if not Rect2i(Vector2i.ZERO, wrong_mask.get_size()).has_point(p):

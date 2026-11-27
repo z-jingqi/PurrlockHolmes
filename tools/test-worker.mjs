@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import worker from "../dist/worker.mjs";
-for(const path of ["/","/style.css","/game.js","/assets/room.webp","/assets/pick.png","/assets/pickups.webp","/assets/pickups.json","/assets/paw-box.svg","/assets/wrong.webp","/assets/wrong.png","/assets/wrong.json"]){
+for(const path of ["/","/style.css","/game.js","/assets/room.webp","/assets/pick.png","/assets/pickups.webp","/assets/pickups.json","/assets/paw-box.svg","/assets/wrong.webp","/assets/wrong.png","/assets/wrong.json","/assets/hint-ray.png"]){
   const res = await worker.fetch(new Request("https://example.invalid"+path));
   assert.equal(res.status, 200, path);
   assert.deepEqual(Buffer.from(await res.arrayBuffer()),readFileSync("dist"+(path==="/"?"/index.html":path)),path);
