@@ -10,6 +10,15 @@ const HINT_RAY := preload("res://assets/hint-ray.png")
 const UI_FONT := preload("res://game/ui-zh.otf")
 const TARGETS := ["saucer","cup","plate","fork","bowl","teapot"]
 const DRAW_ORDER := ["bowl","teapot","saucer","cup","plate","fork"]
+const ART_DECOYS := ["rubber_plant","lance_plant","felt_slippers"]
+const FOLIAGE := ["rubber_plant","lance_plant"]
+# Times and screen motion are authored feedback, not simulated rigid-body forces.
+const FEEDBACK := {
+	"car":[.29,11.0,.079], "blocks":[.25,13.0,.068], "block":[.25,13.0,.068],
+	"balloon":[1.30,1.30,.076], "rubber_plant":[.84,2.8,6.6],
+	"lance_plant":[.84,3.25,6.0], "felt_slippers":[.37,8.0,5.2]
+}
+const BALLOON_TETHER := Vector3(-.397,-1.836,.03)
 const CATEGORY := "餐具"
 const RENDER_SIZE := Vector2(1200,896)
 const TOP := 76.0
@@ -64,7 +73,7 @@ var ticks:=0
 func _ready() -> void:
 	_build_world()
 	atlas_image=ATLAS.get_image()
-	for key in TARGETS:
+	for key in TARGETS + ART_DECOYS:
 		var sprite:=AtlasTexture.new()
 		sprite.atlas=ATLAS
 		sprite.region=FRAMES[key][0]
@@ -200,7 +209,9 @@ func _reparent_meshes(node: Node) -> void:
 				if not original:continue
 				var mat:=original.duplicate() as StandardMaterial3D
 				mat.albedo_color=mat.albedo_color.lerp(Color("#fff7ed"),.26)
-				mat.roughness=.54
+				# Preserve the material-specific finish from Blender (latex, rubber, enamel…).
+				# A small warm lift still matches the baked afternoon lighting.
+				mat.roughness=original.roughness
 				node.set_surface_override_material(i,mat)
 
 func _begin(id: int, at: Vector2) -> void:
@@ -386,6 +397,8 @@ func _draw() -> void:
 	if not view or not camera:return
 	var f:=_scale()
 	draw_texture_rect(BACKDROP,Rect2(_origin(),RENDER_SIZE*f),false)
+	for key in ART_DECOYS:
+		if sprites.has(key):_draw_art_decoy(key,f)
 	for key in DRAW_ORDER:
 		if not sprites.has(key) or taken.has(key) or flights.has(key):continue
 		if key==hint_key:_draw_hint(key)
@@ -398,6 +411,48 @@ func _draw() -> void:
 			var bottom:=center+Vector2(0,d.y*.29)
 			draw_texture_rect(shadow,Rect2(bottom-skid*.5,skid),false,Color(1,1,1,.54))
 		draw_texture_rect(sprite,Rect2(center-d*.5,d),false)
+
+func _wave(key: String,phase := 0.0) -> float:
+	if not shakes.has(key):return 0.0
+	var age: float=shakes[key]
+	var stats: Array=FEEDBACK[key]
+	var t:=clampf(age/float(stats[0]),0.0,1.0)
+	return sin(age*TAU*float(stats[1])+phase)*smoothstep(0.0,.13,t)*pow(1.0-t,1.45)*float(stats[2])
+
+func _plant_offset(key: String,v: float) -> float:
+	# Taper to zero at the soil. The strips at different heights follow a slight phase lag.
+	var flex:=pow(maxf(0.0,1.0-v/.73),1.37)
+	return (_wave(key)+.32*_wave(key,(1.0-v)*2.8))*flex
+
+func _draw_art_decoy(key: String,f: float) -> void:
+	var sprite: AtlasTexture=sprites[key]
+	var d:=sprite.get_size()
+	var origin:=_origin()+_start_pixel(key)*f
+	if key=="felt_slippers":
+		if shadow:
+			draw_texture_rect(shadow,Rect2(origin+Vector2(4,d.y*.51)*f,Vector2(d.x-8,d.y*.56)*f),false,Color(1,1,1,.34))
+		draw_texture_rect(sprite,Rect2(origin+Vector2(_wave(key)*f,0),d*f),false)
+		return
+	if not shakes.has(key):
+		draw_texture_rect(sprite,Rect2(origin,d*f),false)
+		return
+	var tex_size:=ATLAS.get_size()
+	var r: Rect2=sprite.region
+	# Warp the baked curving leaves vertically in a continuous strip mesh to keep
+	# their Blender shading. The ceramic pot is on the separate static backdrop.
+	const ROWS := 12
+	for j in range(ROWS):
+		var a:=float(j)/ROWS
+		var b:=float(j+1)/ROWS
+		var va:=Vector2(_plant_offset(key,a),d.y*a)
+		var vb:=Vector2(_plant_offset(key,b),d.y*b)
+		var horizontal:=Vector2(d.x,0)
+		var left_a:=r.position+Vector2(0,d.y*a)
+		var left_b:=r.position+Vector2(0,d.y*b)
+		draw_primitive(
+			PackedVector2Array([origin+va*f,origin+(va+horizontal)*f,origin+(vb+horizontal)*f,origin+vb*f]),
+			PackedColorArray([Color.WHITE]),
+			PackedVector2Array([left_a/tex_size,(left_a+horizontal)/tex_size,(left_b+horizontal)/tex_size,left_b/tex_size]),ATLAS)
 
 func _draw_live() -> void:
 	live_layer.draw_texture_rect(view.get_texture(),Rect2(_origin(),RENDER_SIZE*_scale()),false)
@@ -470,6 +525,10 @@ func _alpha_hit(key: String,pixel: Vector2) -> bool:
 	var bounds: Rect2=FRAMES[key][0]
 	var scale:=_zoom(key)
 	var rel:=(pixel-_start_pixel(key)-bounds.size*.5)/scale+bounds.size*.5
+	if key=="felt_slippers":
+		rel.x-=_wave(key)
+	elif key in FOLIAGE:
+		rel.x-=_plant_offset(key,clampf(rel.y/bounds.size.y,0.0,1.0))
 	if not Rect2(Vector2.ZERO,bounds.size).has_point(rel):return false
 	return atlas_image.get_pixelv(Vector2i(bounds.position+rel)).a>.22
 
@@ -490,6 +549,10 @@ func _pick_scene(pixel: Vector2) -> void:
 	if not key.is_empty():
 		_take(key)
 		return
+	for prop: String in ART_DECOYS:
+		if _alpha_hit(prop,pixel):
+			shakes[prop]=0.0
+			return
 	var origin:=camera.project_ray_origin(pixel)
 	var ray:=PhysicsRayQueryParameters3D.create(origin,origin+camera.project_ray_normal(pixel)*55.0,ITEMS)
 	var hit:=view.find_world_3d().direct_space_state.intersect_ray(ray)
@@ -523,12 +586,19 @@ func _process(dt: float) -> void:
 			taken[key]=true
 			bump=1.0
 			_refresh_progress()
-	if not shakes.is_empty():view.render_target_update_mode=SubViewport.UPDATE_ONCE
 	for key in shakes.keys():
 		shakes[key]+=dt
-		var age: float=shakes[key]
-		visuals[key].position.x=sin(age*TAU*13.0)*.085*maxf(0.0,1.0-age/.28)
-		if age>=.28:shakes.erase(key)
+		var finished: bool=shakes[key]>=FEEDBACK[key][0]
+		if visuals.has(key):
+			view.render_target_update_mode=SubViewport.UPDATE_ONCE
+			var model: Node3D=visuals[key]
+			if key=="balloon":
+				model.rotation=Vector3(_wave(key,1.8)*.36,0,_wave(key))
+				# Small damped arc with the string's basket contact kept in place.
+				model.position=BALLOON_TETHER-model.basis*BALLOON_TETHER
+			else:
+				model.position.x=_wave(key)
+		if finished:shakes.erase(key)
 	bump=move_toward(bump,0.0,dt*3.7)
 	_redraw()
 
@@ -581,6 +651,25 @@ func _test_frame() -> void:
 		var car_pixel:=camera.unproject_position(DECOYS.car[0])
 		_pick_scene(car_pixel)
 		_test(shakes.has("car") and flights.is_empty(),"Decoy should shake but never advance progress")
+		for prop: String in ART_DECOYS:
+			var pixel: Vector2=FRAMES[prop][1]+FRAMES[prop][0].size*.5
+			var hit:=false
+			for j in range(-12,13,2):
+				for i in range(-12,13,2):
+					var sample:=pixel+Vector2(i,j)
+					if not _alpha_hit(prop,sample):continue
+					_pick_scene(sample)
+					hit=true
+					break
+				if hit:break
+			_test(hit and shakes.has(prop),"Art decoy isn't interactable: "+prop)
+		_pick_scene(camera.unproject_position(DECOYS.balloon[0]))
+		_test(shakes.has("balloon") and taken.is_empty(),"Balloon interaction collected an object")
+	if ticks==18:
+		_test(absf(_plant_offset("rubber_plant",.15))>.1 and is_zero_approx(_plant_offset("rubber_plant",1.0)),"Foliage should move at the leaves and stay at the soil")
+		var model: Node3D=visuals.balloon
+		_test(absf(model.rotation.z)>.001 and (model.transform*BALLOON_TETHER).distance_to(BALLOON_TETHER)<.0001,"Balloon should sway around a fixed tether")
+		_test(taken.is_empty() and flights.is_empty(),"Decorative actions must not affect the objective")
 	for i in range(TARGETS.size()):
 		var phase:=24+i*63
 		var key: String=test_order[i]

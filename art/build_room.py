@@ -1,8 +1,11 @@
 """Build the editable Purrlock Holmes diorama. Blender 4.3+."""
 from pathlib import Path
-import bpy, math
+import bpy, math, sys
 from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[1]
+sys.path.insert(0,str(ROOT/'art'))
+from room_props import scene_props, place, finish_material
+from tea_assets import Studio
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
 def color(h):
     return tuple((v/12.92 if v<=.04045 else ((v+.055)/1.055)**2.4) for v in [int(h[i:i+2],16)/255 for i in (0,2,4)])
@@ -57,8 +60,33 @@ for x,z,k in [(1.28,3.35,.32),(2.9,3.51,.29),(3.21,3.40,.25)]:
 box('Window crossbar',(2.35,4.20,2.96),(3.5,.09,.10),cream,.024)
 box('Window post',(2.35,4.20,2.96),(.10,.09,2.02),cream,.024)
 box('Window sill',(2.35,4.15,1.87),(3.85,.49,.14),honey)
-for x in [.53,4.18]:
-    for j in range(5):box('Linen curtain fold',(x+j*.082-.17,4.07,3.19),(.12,.19,1.75+(j%2)*.10),cream,.05)
+curtain=finish_material("Curtain • woven warm ivory","fff0dc",.88,.32)
+curtain_hem=finish_material("Curtain • sewn edge","dfc9ad",.88,.24)
+for xc,left in [(.54,True),(4.17,False)]:
+    verts=[];faces=[];nx,nz=49,25
+    for j in range(nz):
+        t=j/(nz-1)
+        for i in range(nx):
+            u=i/(nx-1)
+            w=.38+.12*(1-t)**2
+            x=xc+(u-.5)*w+(.055 if left else -.055)*math.sin(math.pi*t)
+            y=4.052+.068*math.cos(8*math.pi*u+.28*t)*(1-.23*t)
+            z=2.27+1.75*t+.048*(1-t)**3*math.cos(8*math.pi*u)
+            verts.append((x,y,z))
+    for j in range(nz-1):
+        for i in range(nx-1):
+            q=j*nx+i;faces.append((q,q+1,q+nx+1,q+nx))
+    tailor=Studio.__new__(Studio);tailor.collection=bpy.context.collection
+    o=tailor.mesh("Continuous folded curtain",verts,faces,curtain)
+    md=o.modifiers.new("Folded cloth edge","SOLIDIFY");md.thickness=.027
+    line("Curtain lower sewn hem",verts[:nx],.013,curtain_hem)
+    for i in [4,14,24,34,44]:
+        x=verts[(nz-1)*nx+i][0]
+        ring('Fabric curtain loop',(x,4.06,4.043),.042,.010,curtain_hem,vertical=True)
+rod=finish_material("Curtain rod • champagne bronze","bc9c74",.47)
+line('Curtain rod',[(.28,4.078,4.066),(4.43,4.078,4.066)],.036,rod)
+for x in [.264,4.447]:
+    ell('Curtain rod end',(x,4.078,4.066),(.066,.052,.052),rod)
 # couch, rug, low table
 for x in [-4.95,-2.05]:
     for y in [1.50,3.12]:cyl('Sofa foot',(x,y,.26),.11,.45,wood)
@@ -97,14 +125,11 @@ for x in [3.31,4.66]:
     cyl('Bookend',(x,2.69,1.75),.13,.28,cream)
 for j,m in enumerate([mint,pink,blue,gold]):
     box('Little book',(3.57+j*.18,2.78,1.84),(.14,.49,.47-j*.04),m,.035)
-def plant(x,y,z):
-    cyl('Plant pot',(x,y,z+.26),.27,.51,terr,.39)
-    cyl('Pot earth',(x,y,z+.51),.33,.024,dark)
-    for j in range(7):
-        a=j*2.4;r=.24+.09*(j%2);endp=(x+math.cos(a)*r,y+math.sin(a)*r,z+.87+.16*(j%3))
-        line('Plant stalk',[(x,y,z+.51),endp],.019,jade)
-        o=ell('Rubber plant leaf',endp,(.27,.12,.077),[mint,jade][j%2]);o.rotation_euler=(.1,.3,a)
-plant(5.12,2.86,1.63);plant(-5.02,-.53,.10)
+props=scene_props()
+place(props["clay_planter"],(-5.02,-.53,.064),-.22,1.07)
+place(props["rubber_plant"],(-5.02,-.53,.064+.432*1.07),-.38,1.07)
+place(props["celadon_planter"],(5.12,2.86,1.624),.22,.91)
+place(props["lance_plant"],(5.12,2.86,1.624+.443*.91),.42,.91)
 # Room mascot: original cream detective cat
 ell('Cat body',(-3.53,2.13,1.40),(.56,.37,.33),cream)
 ell('Cat head',(-3.52,1.95,1.83),(.59,.43,.47),cream)
@@ -124,21 +149,48 @@ box('Book label',(-1.34,-1.32,1.098),(.32,.21,.012),cream,.034,-.24)
 box('Notebook',(.83,.00,1.055),(.73,.49,.09),pink,.046,.12)
 ell('Clementine',(.90,-1.46,1.17),(.18,.18,.16),gold)
 ell('Clementine leaf',(.89,-1.42,1.32),(.095,.045,.023),jade)
-box('Toy car chassis',(3.39,-1.80,.31),(.91,.48,.28),red,.10)
-box('Toy car cab',(3.53,-1.80,.51),(.46,.39,.27),pink,.10)
+# Different finishes remain legible at the real game camera, even without texture noise.
+car_enamel=finish_material("Toy • smooth strawberry enamel","ce626c",.36,coat=.32)
+car_cab=finish_material("Toy • rose enamel","df9a98",.43,coat=.2)
+car_glass=finish_material("Toy • celadon windows","72929c",.30,coat=.26)
+car_tire=finish_material("Toy • matte rubber","50404a",.84)
+wheel_hub=finish_material("Toy • pale metal hubs","d7b89a",.44)
+latex=finish_material("Balloon • rose latex","dc7c87",.27,coat=.23)
+box('Toy car chassis',(3.39,-1.80,.31),(.91,.48,.26),car_enamel,.088)
+box('Toy car cab',(3.52,-1.80,.49),(.48,.38,.29),car_cab,.083)
+for y in [-2.002,-1.598]:
+    for i in range(2):
+        box('Toy car side window',(3.397+i*.191,y,.520),(.157,.019,.124),car_glass,.024)
+box('Toy car windscreen',(3.284,-1.80,.526),(.024,.292,.135),car_glass,.027)
+box('Toy car chrome front bumper',(2.94,-1.80,.266),(.066,.455,.073),wheel_hub,.030)
+box('Toy car chrome rear bumper',(3.85,-1.80,.266),(.050,.437,.063),wheel_hub,.026)
+for y in [-1.971,-1.629]:
+    ell('Toy car headlight',(2.947,y,.354),(.024,.056,.056),cream)
 for x in [3.11,3.69]:
-    for y in [-2.03,-1.57]:ell('Toy car wheel',(x,y,.23),(.14,.08,.14),dark)
+    for y,sign in [(-2.031,-1),(-1.569,1)]:
+        ell('Toy car shoulder tire',(x,y,.207),(.147,.071,.143),car_tire)
+        ell('Toy car steel hub',(x,y+sign*.055,.207),(.082,.027,.081),wheel_hub)
+        ell('Toy car center cap',(x,y+sign*.074,.207),(.029,.014,.029),car_cab)
 for x,y,m in [(4.38,-1.18,blue),(4.92,-1.18,gold),(4.62,-.84,pink),(-3.78,-2.18,mint)]:
-    box('Wooden toy block',(x,y,.23),(.32,.33,.32),m,.056,.26)
-for x in [-5.05,-4.55]:
-    ell('House slipper',(x,-2.78,.15),(.20,.36,.09),pink);ell('Slipper upper',(x,-2.64,.24),(.18,.20,.13),pink)
-cyl('Basket',(4.63,-.02,.36),.54,.55,sand,.67)
-ring('Basket piping',(4.63,-.02,.63),.63,.066,wood)
-for z in [.22,.35,.48]:ring('Reed bands',(4.63,-.02,z),.54+(z-.15)*.22,.024,wood)
-ell('Basket fabric',(4.66,-.02,.62),(.48,.44,.17),blue)
-ell('Red balloon',(5.05,.16,2.47),(.42,.38,.50),red)
-ell('Balloon knot',(5.05,.16,1.96),(.072,.060,.088),red)
-line('Balloon thread',[(5.05,.16,1.94),(5,.16,1.61),(4.88,.15,1.23),(4.65,.13,.72)],.014,dark)
+    box('Wooden toy block',(x,y,.226),(.32,.33,.32),m,.037,.26)
+    badge=ring('Block inlay',(x,y,.386),.079,.010,cream)
+    badge.scale.y=.82
+place(props["felt_slippers"],(-4.80,-2.78,.062),.051)
+place(props["reed_basket"],(4.63,-.02,.063),.08,1.08)
+# Balloon pole mesh: pear-shaped membrane tapers into the latex neck, not a sphere plus oval.
+balloon_col=bpy.context.collection
+shaper=Studio.__new__(Studio);shaper.collection=balloon_col
+o=shaper.lathe("Balloon membrane",[(r,h+.55) for r,h in [(.001,-.537),(.040,-.533),(.043,-.492),
+    (.083,-.454),(.164,-.410),(.280,-.339),(.371,-.229),(.413,-.098),
+    (.433,.046),(.425,.170),(.383,.288),(.315,.386),(.217,.458),(.105,.493),(.001,.504)]],latex,z=-.55)
+o.location=(5.05,.16,2.47)
+o.rotation_euler.y=.11
+ell('Balloon knot',(5.00,.16,1.936),(.049,.040,.040),latex)
+shaper.tube('Balloon folded tie',[(4.97,.15,1.933),(4.999,.12,1.934),(5.043,.16,1.948)],
+    [.016,.024,.016],latex)
+shaper.tube('Balloon thread',[(4.998,.157,1.915),(4.958,.156,1.71),(4.948,.15,1.51),
+    (4.841,.12,1.26),(4.833,.124,1.075),(4.751,.12,.89),(4.653,.13,.634)],
+    [.010,.010,.010,.0095,.0095,.0095,.009],dark,axis=(0,1,0))
 box('Floor magazine',(-2.67,-3.46,.162),(.80,.58,.048),mint,.034,-.18)
 box('Magazine art',(-2.67,-3.46,.190),(.46,.24,.008),cream,.022,-.18)
 # Quiet room-model refinements: believable materials and furniture joinery.
@@ -176,8 +228,35 @@ for o in bpy.context.scene.objects:
 box('Folded sage linen',(.97,-.37,1.063),(.55,.36,.105),mint,.065,-.16)
 for i in range(8):
     box('Linen stitched hem',(.744+i*.058,-.503-(i*.009),1.117),(.033,.016,.006),cream,.005,-.16)
-import sys
-sys.path.insert(0,str(ROOT/'art'))
+# Magazine spines, pillow seams and stitched details maintain the quiet silhouette at full-frame.
+paper=finish_material("Room • page edges","efe1c8",.91)
+sofa_cloth=finish_material("Room • sage upholstery","a6cba5",.88,.33)
+wood.node_tree.nodes.get("Principled BSDF").inputs["Roughness"].default_value=.46
+honey.node_tree.nodes.get("Principled BSDF").inputs["Roughness"].default_value=.54
+for o in bpy.context.scene.objects:
+    if o.type=='MESH' and o.name.startswith(('Sofa back','Seat cushion','Sofa arm')):
+        o.data.materials[0]=sofa_cloth
+for x,z,m in [(-4.66,1.54,terr),(-2.31,1.43,honey)]:
+    w=.32 if x < -4 else .245
+    pts=[(x+w*math.copysign(abs(math.cos(a))**.58,math.cos(a)),2.598 if x < -4 else 2.522,
+          z+w*.92*math.copysign(abs(math.sin(a))**.58,math.sin(a))) for a in [math.tau*i/48 for i in range(49)]]
+    line('Pillow softly corded seam',pts,.013,m)
+for x,y,z,w,d,ang in [(-1.34,-1.32,1.063,.724,.520,-.24),(.83,0,1.063,.695,.460,.12),
+                       (-2.67,-3.46,.168,.763,.551,-.18),(cx+.08,cy-.06,1.202,.555,.448,-.16)]:
+    box('Book sewn paper block',(x,y,z),(w,d,.052 if z>.2 else .027),paper,.019,ang)
+    # Put a few edges just inside the wrap so the spine and page block read separately.
+    for dz in [-.012,.002,.014]:
+        px=x+math.sin(ang)*d*.49;py=y-math.cos(ang)*d*.49
+        box('Quiet book page edge',(px,py,z+dz),(w*.89,.010,.003),sand,.002,ang)
+for sx in [-1,1]:
+    for j in range(3):
+        x=-3.52+sx*(.25+.028*j);z=1.764-.034*j
+        line('Cat muzzle whisker',[(x,1.567,z),(x+sx*.082,1.546,z+.009*(1-j))],.007,terr)
+ell('Cat muzzle left',(-3.574,1.563,1.744),(.095,.038,.052),cream)
+ell('Cat muzzle right',(-3.466,1.563,1.744),(.095,.038,.052),cream)
+for x in [-3.85,-3.24]:
+    for dx in [-.055,.052]:
+        line('Little paw seam',[(x+dx,1.591,1.265),(x+dx,1.578,1.237)],.007,sand)
 from tea_assets import tea_set, instance
 collection=tea_set()
 for key,location,yaw in [

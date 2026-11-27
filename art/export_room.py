@@ -9,12 +9,16 @@ scene=bpy.context.scene
 assets={o["tea_key"]:o for o in scene.objects if "tea_key" in o}
 expect={"saucer","cup","plate","fork","bowl","teapot"}
 assert set(assets)==expect
+overlays={o.instance_collection["asset_id"]:o for o in scene.objects
+          if o.instance_type=='COLLECTION' and o.instance_collection
+          and o.instance_collection.get("asset_id") in {"rubber_plant","lance_plant","felt_slippers"}}
+assert len(overlays)==3
 decoys={}
 for obj in scene.objects:
     name=re.sub(r'\.\d{3,}$','',obj.name)
     if name.startswith("Toy car"):key="car"
-    elif name=="Wooden toy block":key="blocks" if obj.location.x>0 else "block"
-    elif name in {"Red balloon","Balloon knot","Balloon thread"}:key="balloon"
+    elif name in {"Wooden toy block","Block inlay"}:key="blocks" if obj.location.x>0 else "block"
+    elif name.startswith("Balloon "):key="balloon"
     else:continue
     decoys[obj]=(key,name)
 
@@ -29,21 +33,23 @@ scene.cycles.samples=int(os.environ.get("PURRLOCK_SAMPLES","128"))
 scene.cycles.use_adaptive_sampling=True
 scene.cycles.adaptive_threshold=.012
 scene.cycles.use_denoising=os.environ.get("PURRLOCK_OIDN")=="1"
-for o in [*assets.values(),*decoys]:o.hide_render=True
+for o in [*assets.values(),*overlays.values(),*decoys]:o.hide_render=True
 scene.render.filepath=str(stage/"room.png")
 if os.environ.get("PURRLOCK_KEEP_BACKGROUND")!="1" or not (stage/"room.png").is_file():
     bpy.ops.render.render(write_still=True)
 
 # Transparent renders provide the exact same pixels at rest, during hints and during pickup.
 for o in scene.objects:
-    if o.type in {'MESH','CURVE'}:o.hide_render=True
+    if o.type in {'MESH','CURVE'} or o.instance_type=='COLLECTION':o.hide_render=True
 scene.render.film_transparent=True
 scene.cycles.samples=max(32,scene.cycles.samples//2)
 scene.cycles.adaptive_threshold=.025
-for key,o in assets.items():
+for key,o in (assets | overlays).items():
     o.hide_render=False
     scene.render.filepath=str(stage/(key+".png"))
-    bpy.ops.render.render(write_still=True)
+    use_existing_tea = key in assets and os.environ.get("PURRLOCK_KEEP_TEA")=="1" and (stage/(key+".png")).is_file()
+    if not use_existing_tea:
+        bpy.ops.render.render(write_still=True)
     o.hide_render=True
 
 # For interactive distractors only. Non-interactive furniture belongs to the baked room.

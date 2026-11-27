@@ -61,17 +61,17 @@ class Studio:
         if cap:faces.extend([tuple(range(detail-1,-1,-1)),tuple((len(profile)-1)*detail+i for i in range(detail))])
         return self.mesh(name,vertices,faces,material)
 
-    def tube(self,name,centers,radii,material,axis=(0,1,0),hollow=0):
+    def tube(self,name,centers,radii,material,axis=(0,1,0),hollow=0,sections=24,samples=6):
         # Smooth centerline, taper rings and skin thickness; used for handles and spouts.
         pts=[Vector(p) for p in centers]; args=[]
         for i in range(len(pts)-1):
             a,b,c,d=pts[max(i-1,0)],pts[i],pts[i+1],pts[min(i+2,len(pts)-1)]
-            for j in range(6):
-                t=j/6
+            for j in range(samples):
+                t=j/samples
                 p=.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t)
                 args.append((p,(1-t)*radii[i]+t*radii[i+1]))
         args.append((pts[-1],radii[-1]))
-        verts=[]; faces=[]; section=24
+        verts=[]; faces=[]; section=sections
         for i,(center,r) in enumerate(args):
             direction=(args[min(i+1,len(args)-1)][0]-args[max(i-1,0)][0]).normalized()
             ref=Vector(axis).cross(direction).normalized()
