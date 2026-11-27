@@ -75,3 +75,5 @@ python3 art/pack_wrong.py  # 需要 Pillow
 godot --headless --path . res://physics/physics_room.tscn -- --test-physics --test-covered
 godot --headless --path . -- --test-demo
 ```
+
+网页也可以在 [撤桌试验回放](https://purrlock-holmes.pineappleq16.workers.dev/physics/) 查看效果。回放采样 Godot 的刚体和毛巾模拟，用 Blender 重渲染，不是 Godot Web 导出或实时网页关卡。

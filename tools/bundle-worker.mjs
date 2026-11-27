@@ -2,6 +2,9 @@
 import {readFileSync,writeFileSync} from "node:fs";
 const types = {
   "/index.html":"text/html; charset=utf-8",
+  "/physics.html":"text/html; charset=utf-8",
+  "/assets/physics.mp4":"video/mp4",
+  "/assets/physics-poster.webp":"image/webp",
   "/style.css":"text/css; charset=utf-8",
   "/game.js":"text/javascript; charset=utf-8",
   "/assets/room.webp":"image/webp",
@@ -18,12 +21,30 @@ const files = Object.fromEntries(Object.entries(types).map(([p,t]) => [p,[t,read
 writeFileSync("dist/worker.mjs", `const files=${JSON.stringify(files)};
 export default {fetch(req){
   if(req.method!=="GET"&&req.method!=="HEAD")return new Response("Method not allowed",{status:405,headers:{Allow:"GET, HEAD"}});
-  const p=new URL(req.url).pathname;
-  const file=Object.hasOwn(files,p==="/"?"/index.html":p)?files[p==="/"?"/index.html":p]:null;
+  const route=new URL(req.url).pathname;
+  const p=route==="/"?"/index.html":route==="/physics/"||route==="/physics"?"/physics.html":route;
+  const file=Object.hasOwn(files,p)?files[p]:null;
   if(!file)return new Response("Not found",{status:404});
-  return new Response(req.method==="HEAD"?null:Uint8Array.from(atob(file[1]),c=>c.charCodeAt(0)),{
-    headers:{"Content-Type":file[0],"Cache-Control":"public, max-age=300",
+  const bytes=Uint8Array.from(atob(file[1]),c=>c.charCodeAt(0));
+  const headers={"Content-Type":file[0],"Cache-Control":"public, max-age=300",
       "X-Content-Type-Options":"nosniff","Referrer-Policy":"no-referrer",
-      "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"}});
+      "Content-Security-Policy":"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self'; media-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'"};
+  if(file[0]==="video/mp4"){
+    headers["Accept-Ranges"]="bytes";
+    const raw=req.headers.get("Range");
+    if(raw){
+      const m=/^bytes=([0-9]*)-([0-9]*)$/.exec(raw);
+      const size=bytes.length;
+      if(!m||(!m[1]&&!m[2]))return new Response(null,{status:416,headers:{"Content-Range":"bytes */"+size}});
+      const min=m[1]?Number(m[1]):Math.max(0,size-Number(m[2]));
+      const max=m[1]&&m[2]?Math.min(size-1,Number(m[2])):size-1;
+      if(min>=size||max<min)return new Response(null,{status:416,headers:{"Content-Range":"bytes */"+size}});
+      headers["Content-Range"]="bytes "+min+"-"+max+"/"+size;
+      headers["Content-Length"]=String(max-min+1);
+      return new Response(req.method==="HEAD"?null:bytes.subarray(min,max+1),{status:206,headers});
+    }
+  }
+  headers["Content-Length"]=String(bytes.length);
+  return new Response(req.method==="HEAD"?null:bytes,{headers});
 }};
 `);
