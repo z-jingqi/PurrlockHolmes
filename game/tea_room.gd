@@ -1,5 +1,6 @@
 extends Control
 ## Case 01. Only tableware is collectible. Every view shares the fixed Blender camera.
+const TEDDY := preload("res://game/room_teddy.gd")
 const BACKDROP := preload("res://assets/room.webp")
 const ATLAS := preload("res://assets/tea-sprites.webp")
 const ART := preload("res://game/tea_frames.gd")
@@ -23,6 +24,8 @@ const FOOTER := 94.0
 const LIFT := .14
 const DURATION := .58
 const HINT_SECONDS := 3.0
+var backdrop_layer: Node2D
+var teddy: Node2D
 var hud_layer: Node2D
 var cup_age := -1.0
 var elapsed := 0.0
@@ -52,6 +55,12 @@ var test_order: Array[String]=[]
 var ticks:=0
 
 func _ready() -> void:
+	backdrop_layer=Node2D.new()
+	backdrop_layer.show_behind_parent=true
+	backdrop_layer.draw.connect(_draw_backdrop)
+	add_child(backdrop_layer)
+	teddy=TEDDY.new()
+	add_child(teddy)
 	hud_layer=Node2D.new()
 	hud_layer.draw.connect(_draw_hud)
 	add_child(hud_layer)
@@ -231,6 +240,10 @@ func _box_center() -> Vector2:
 
 func _redraw() -> void:
 	queue_redraw()
+	if backdrop_layer:backdrop_layer.queue_redraw()
+	if teddy:
+		teddy.position=_origin()
+		teddy.scale=Vector2.ONE*_scale()
 	if hud_layer:hud_layer.queue_redraw()
 
 func _start_pixel(key: String) -> Vector2:
@@ -251,10 +264,12 @@ func _zoom(key: String) -> float:
 	var a:=minf(hint_age/.12,1.0)*(1.0-smoothstep(HINT_SECONDS-.32,HINT_SECONDS,hint_age))
 	return 1.0+(.5+.5*sin(hint_age*TAU*1.12))*.09*a
 
+func _draw_backdrop() -> void:
+	backdrop_layer.draw_texture_rect(BACKDROP,Rect2(_origin(),RENDER_SIZE*_scale()),false)
+
 func _draw() -> void:
 	if sprites.is_empty():return
 	var f:=_scale()
-	draw_texture_rect(BACKDROP,Rect2(_origin(),RENDER_SIZE*f),false)
 	_draw_decor(f)
 	_draw_balloon_bunch(f)
 	for key in DRAW_ORDER:
@@ -532,6 +547,8 @@ func _tap_point(key: String) -> Dictionary:
 
 func _test_frame() -> void:
 	if ticks==10:
+		_test(teddy.visible_mesh_count()>=18,"Teddy is missing its 3D geometry")
+		_test(teddy.model_pin().distance_to(MARKERS["tether"])<.15,"The balloon tether drifted from the 3D bear")
 		for key in TARGETS:
 			_test(_tap_point(key).ratio>=.25,"Insufficient visible area: "+key)
 		_hint_target()

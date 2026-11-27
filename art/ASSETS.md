@@ -21,6 +21,17 @@ python3 art/pack_tea.py /tmp/purrlock-bake
 PURRLOCK_BAKE_DIR=/tmp/purrlock-bake blender -b art/room.blend --python art/asset_previews.py
 ```
 
+更新房间底图时，还要从这次生成的、包含小熊的原图重建小熊的独立 3D 视口。不要把已移除熊的底图作为参考输入：
+
+```sh
+cp assets/room.webp /tmp/purrlock-bake/room-with-teddy.webp
+PURRLOCK_BEAR_STAGE=/tmp/purrlock-bake/bear blender -b art/room.blend --python art/export_bear.py
+python3 art/pack_bear.py /tmp/purrlock-bake/bear /tmp/purrlock-bake/room-with-teddy.webp
+```
+
+`assets/teddy.glb` 保留真实几何、可编辑材质与地面原点，换镜头可以复用。第一关的专用显示把已核准视角的光色投到模型上，只由网格计算轮廓。清空底图时保留接触影并无损写入，其余区域保持原像素。`pack_bear.py` 需要 NumPy 与 Pillow。
+
+
 打包需要 Pillow；有 OpenCV 时优先保留轮廓做彩色去噪，没有时使用轻量中值去噪。自带 OpenImageDenoise 的 Blender 可以加 `PURRLOCK_OIDN=1` 渲染，并在打包时传 `--already-denoised`。若要从程序化模型重建源文件，可运行 `blender -b --python art/build_room.py`，会覆盖当前 `room.blend`。
 
 ## 茶室陈设 · Room props

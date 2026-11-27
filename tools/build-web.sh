@@ -14,8 +14,8 @@ test -f "$template" || { echo "Web export template not found: $template" >&2; ex
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/project/game" "$scratch/project/assets" "$scratch/export"
-cp game/*.gd game/ui-zh.otf "$scratch/project/game/"
-cp assets/room.webp assets/tea-sprites.webp assets/hint-ray.png assets/paw-box.svg "$scratch/project/assets/"
+cp game/*.gd game/*.gdshader game/ui-zh.otf "$scratch/project/game/"
+cp assets/room.webp assets/tea-sprites.webp assets/hint-ray.png assets/paw-box.svg assets/teddy.glb assets/teddy-look.png "$scratch/project/assets/"
 cp web/index.html "$scratch/project/shell.html"
 cp main.tscn project.godot "$scratch/project/"
 cat > "$scratch/project/export_presets.cfg" <<PRESET
