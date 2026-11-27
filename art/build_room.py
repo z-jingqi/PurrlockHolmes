@@ -5,6 +5,7 @@ from mathutils import Vector
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'art'))
 from room_props import scene_props, place, finish_material
+from hero_props import balloon,cat,pillow
 from tea_assets import Studio
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
 def color(h):
@@ -42,6 +43,37 @@ def line(n,pts,r,m):
     c=bpy.data.curves.new(n,'CURVE');c.dimensions='3D';c.bevel_depth=r;c.bevel_resolution=3;s=c.splines.new('POLY');s.points.add(len(pts)-1)
     for k,p in zip(s.points,pts):k.co=(*p,1)
     o=bpy.data.objects.new(n,c);bpy.context.collection.objects.link(o);return finish(o,n,m)
+# A closed book reads by silhouette and structure, even without tiny simulated text.
+book_pages=finish_material("Books • cream cut paper","ead9bd",.89)
+book_edge=finish_material("Books • pale leaf edges","c9b390",.83)
+def book(name,p,w,d,h,tint,yaw,emblem):
+    x,y,z=p
+    cs,sn=math.cos(yaw),math.sin(yaw)
+    def world(u,v,t):return (x+cs*u-sn*v,y+sn*u+cs*v,z+t)
+    cover=finish_material(name+" • paperboard",tint,.73,.16)
+    spine=finish_material(name+" • cloth spine",tint,.86,.26)
+    box(name+' bound lower cover',world(0,0,.009),(w,d,.018),cover,.009,yaw)
+    box(name+' ivory paper block',world(.011,0,h*.51),(w-.060,d-.038,h-.033),book_pages,.014,yaw)
+    box(name+' bound upper cover',world(0,0,h-.011),(w,d,.022),cover,.010,yaw)
+    box(name+' bowed book spine',world(-w*.468,0,h*.505),(.055,d-.014,h*.94),spine,.022,yaw)
+    for k in range(3):
+        zh=h*(.32+k*.14)
+        box(name+' fore edge pages',world(w*.484-.011,0,zh),(.004,d*.84,.0028),book_edge,.0014,yaw)
+        box(name+' foot edge pages',world(.012,-d*.5+.017,zh),(w*.80,.005,.0028),book_edge,.0014,yaw)
+    box(name+' small cover label',world(.019,.026,h+.003),(w*.55,d*.50,.007),cream,.011,yaw)
+    if emblem=="flower":
+        for i in range(5):
+            a=math.tau*i/5
+            ell(name+' painted petal',world(.012+.043*math.cos(a),.026+.043*math.sin(a),h+.009),
+                (.020,.020,.003),terr)
+        ell(name+' painted flower center',world(.012,.026,h+.011),(.018,.018,.003),gold)
+    elif emblem=="leaf":
+        line(name+' painted twig',[world(-.060,-.022,h+.009),world(.013,.026,h+.009),world(.076,.060,h+.009)],.007,jade)
+        for u,v in [(-.024,.025),(.025,.012),(.057,.058)]:
+            o=ell(name+' painted tiny leaf',world(u,v,h+.009),(.025,.014,.003),jade);o.rotation_euler.z=yaw+.42
+    else:
+        for i,a in enumerate([.12,.07,.10]):
+            box(name+' cover mark',world(.025,.069-i*.042,h+.009),(a,.011,.003),blue,.002,yaw)
 # envelope and room
 box('Diorama plinth',(0,0,-.26),(12.75,9.55,.48),honey,.26)
 for j in range(12):
@@ -95,60 +127,53 @@ box('Sofa back',(-3.49,3.20,1.37),(3.75,.49,1.87),mint,.22)
 for x in [-4.33,-2.64]:
     box('Seat cushion',(x,2.12,1.02),(1.58,1.48,.31),mint,.13)
 for x in [-5.26,-1.72]:box('Sofa arm',(x,2.25,1.17),(.42,1.93,.98),mint,.19)
-box('Blush pillow',(-4.66,2.78,1.54),(.77,.38,.75),pink,.17,-.12)
-box('Butter pillow',(-2.31,2.69,1.43),(.60,.35,.62),gold,.16,.24)
+pillow(bpy.context.collection,"Blush pillow",(-4.67,2.78,1.53),.401,.384,.210,-.12,-.19,"e4a4a3","bc8584")
+pillow(bpy.context.collection,"Butter pillow",(-2.30,2.66,1.434),.335,.326,.174,.25,-.27,"e4be7a","bf985e")
 box('Wool rug',(-.46,-1.07,.09),(6.65,5.18,.07),cream,.26)
 for j in range(8):
     for y in [-3.49,1.34]:box('Rug stitched dash',(-3.31+j*.80,y,.134),(.38,.037,.011),terr,.004)
 for x in [-1.73,1.48]:
-    for y in [-1.76,.12]:cyl('Low table leg',(x,y,.46),.12,.72,wood,.16)
+    for y in [-1.76,.12]:cyl('Low table leg',(x,y,.486),.12,.72,wood,.16)
 box('Tea table',(-.11,-.82,.89),(3.83,2.53,.22),honey,.22)
 # A low wooden chair with a peach seat, beside the tea table.
 cx, cy = -3.22, -.53
 for dx in [-.46,.46]:
     for dy in [-.43,.43]:
-        box('Chair leg',(cx+dx,cy+dy,.49),(.15,.15,.89),wood,.042)
+        box('Chair leg',(cx+dx,cy+dy,.528),(.15,.15,.80),wood,.042)
 box('Chair seat',(cx,cy,.94),(1.22,1.18,.16),honey,.074)
 box('Chair cushion',(cx,cy-.02,1.07),(1.12,1.02,.17),pink,.105)
 for dx in [-.48,.48]:
     box('Chair upright',(cx+dx,cy+.46,1.47),(.15,.145,1.15),wood,.048)
 box('Chair back',(cx,cy+.46,1.88),(1.18,.18,.52),honey,.07)
-box('Chair book',(cx+.08,cy-.06,1.20),(.59,.48,.085),mint,.055,-.16)
-box('Chair book label',(cx+.08,cy-.06,1.246),(.27,.19,.013),cream,.019,-.16)
+book('Chair field guide',(cx+.08,cy-.06,1.155),.608,.466,.094,'a3ba9a',-.16,'leaf')
 # Cabinet and accents
 box('Sideboard',(3.84,2.78,.79),(3.20,1.14,1.43),wood,.12)
 box('Sideboard top',(3.84,2.78,1.55),(3.38,1.31,.14),honey)
 for x in [2.84,3.84,4.84]:
     box('Linen cupboard door',(x,2.19,.79),(.93,.115,1.19),cream)
     ell('Drawer pull',(x+.22,2.095,.83),(.073,.068,.073),wood)
-for x in [3.31,4.66]:
-    cyl('Bookend',(x,2.69,1.75),.13,.28,cream)
+# Four books in a short upright row, with wrapping covers and visible page tops.
 for j,m in enumerate([mint,pink,blue,gold]):
-    box('Little book',(3.57+j*.18,2.78,1.84),(.14,.49,.47-j*.04),m,.035)
+    x=-.68+j*.148; y=2.89; h=.425-j*.037
+    box('Upright book page block',(x,y,.071+h*.5),(.100,.37,h),book_pages,.013)
+    for edge in [-.056,.056]:
+        box('Upright bound cover',(x+edge,y,.065+h*.52),(.018,.40,h+.022),m,.008)
+    box('Upright rounded spine',(x,y-.195,.066+h*.52),(.138,.043,h+.017),m,.018)
+    for dz in [.066,h-.052]:
+        box('Upright spine foil band',(x,y-.218,.066+dz),(.106,.005,.012),cream,.004)
+box('Beech bookend foot',(-.84,2.89,.086),(.275,.41,.052),wood,.018)
+box('Beech bookend upright',(-.789,2.89,.235),(.085,.36,.321),wood,.039)
 props=scene_props()
 place(props["clay_planter"],(-5.02,-.53,.064),-.22,1.07)
 place(props["rubber_plant"],(-5.02,-.53,.064+.432*1.07),-.38,1.07)
 place(props["celadon_planter"],(5.12,2.86,1.624),.22,.91)
 place(props["lance_plant"],(5.12,2.86,1.624+.443*.91),.42,.91)
-# Room mascot: original cream detective cat
-ell('Cat body',(-3.53,2.13,1.40),(.56,.37,.33),cream)
-ell('Cat head',(-3.52,1.95,1.83),(.59,.43,.47),cream)
-for x,sgn in [(-3.91,-1),(-3.13,1)]:
-    bpy.ops.mesh.primitive_cone_add(vertices=32,radius1=.24,radius2=.065,depth=.47,location=(x,1.99,2.19))
-    o=bpy.context.object;o.rotation_euler.y=sgn*.20;k=o.modifiers.new('Soft tip','BEVEL');k.width=.068;k.segments=4;finish(o,'Cat ear',cream)
-    ell('Cat ear blush',(x,1.82,2.18),(.10,.055,.14),pink)
-for x in [-3.72,-3.31]:
-    ell('Cat dot eye',(x,1.571,1.85),(.046,.024,.050),dark)
-    ell('Cat blush',(x-.04,1.59,1.735),(.075,.029,.035),pink)
-ell('Cat little nose',(-3.52,1.532,1.77),(.040,.024,.028),dark)
-for x in [-3.85,-3.24]:ell('Cat little paw',(x,1.75,1.24),(.17,.19,.10),cream)
-line('Cat tail',[(-3.03,2.23,1.44),(-2.89,2.33,1.45),(-2.83,2.37,1.57),(-2.88,2.39,1.70)],.085,cream)
+# Original sculpted room mascot, posed low on the sofa.
+cat(bpy.context.collection,ell)
 # Assorted non-target props: toy truck, books, slipper, basket, fruit, balloon
-box('Storybook',(-1.34,-1.32,1.05),(.76,.55,.085),blue,.047,-.24)
-box('Book label',(-1.34,-1.32,1.098),(.32,.21,.012),cream,.034,-.24)
-box('Notebook',(.83,.00,1.055),(.73,.49,.09),pink,.046,.12)
-ell('Clementine',(.90,-1.46,1.17),(.18,.18,.16),gold)
-ell('Clementine leaf',(.89,-1.42,1.32),(.095,.045,.023),jade)
+book('Blue storybook',(-1.34,-1.32,1.001),.765,.55,.101,'8caac0',-.24,'flower')
+ell('Clementine',(.16,-.09,1.17),(.18,.18,.16),gold)
+ell('Clementine leaf',(.155,-.05,1.32),(.095,.045,.023),jade)
 # Different finishes remain legible at the real game camera, even without texture noise.
 car_enamel=finish_material("Toy • smooth strawberry enamel","ce626c",.36,coat=.32)
 car_cab=finish_material("Toy • rose enamel","df9a98",.43,coat=.2)
@@ -170,10 +195,14 @@ for x in [3.11,3.69]:
         ell('Toy car shoulder tire',(x,y,.207),(.147,.071,.143),car_tire)
         ell('Toy car steel hub',(x,y+sign*.055,.207),(.082,.027,.081),wheel_hub)
         ell('Toy car center cap',(x,y+sign*.074,.207),(.029,.014,.029),car_cab)
-for x,y,m in [(4.38,-1.30,blue),(4.92,-1.34,gold),(4.62,-1.04,pink),(-3.78,-2.18,mint)]:
-    box('Wooden toy block',(x,y,.226),(.32,.33,.32),m,.037,.26)
-    badge=ring('Block inlay',(x,y,.386),.079,.010,cream)
-    badge.scale.y=.82
+for i,(x,y,m) in enumerate([(4.38,-1.30,blue),(4.92,-1.34,gold),(4.62,-1.04,pink)]):
+    box('Wooden toy block',(x,y,.222),(.32,.33,.32),m,.036,.26)
+    pz=.384
+    if i==0:ring('Toy block printed circle',(x,y,pz),.078,.010,cream)
+    elif i==1:line('Toy block printed triangle',[(x-.084,y-.052,pz),(x,y+.078,pz),(x+.084,y-.052,pz),(x-.084,y-.052,pz)],.010,cream)
+    else:
+        line('Toy block printed cross',[(x-.074,y-.062,pz),(x+.074,y+.062,pz)],.009,cream)
+        line('Toy block printed cross',[(x-.074,y+.062,pz),(x+.074,y-.062,pz)],.009,cream)
 place(props["felt_slippers"],(-4.80,-2.78,.062),.051)
 # The bear is a non-interactive prop baked into the room; its paw fixes all three ribbons.
 felt=finish_material("Bear • honey plush","cd996f",.88,.31)
@@ -209,25 +238,16 @@ bear_part("ribbon knot at tether",(.443,-.233,.642),(.033,.018,.023),ribbon)
 anchor=bpy.data.objects.new("Ribbon pin",None);bpy.context.scene.collection.objects.link(anchor)
 anchor.location=pin;anchor["room_marker"]="tether"
 
-# Individual latex silhouettes, drawn at the exact scene light and camera as 2D sprites.
-shaper=Studio.__new__(Studio);shaper.collection=bpy.context.collection
-profile=[(.001,-.542),(.042,-.538),(.046,-.490),(.083,-.445),(.167,-.396),
-         (.277,-.337),(.369,-.230),(.414,-.108),(.433,.047),(.425,.169),
-         (.383,.288),(.315,.385),(.217,.458),(.105,.493),(.001,.504)]
+# Individual latex silhouettes rendered as flat images in the shipped game.
 for i,(rgb,pos,scale,lean) in enumerate([
-    ("dc8f95",(5.43,-.13,2.40),.76,-.12),
-    ("e4b974",(5.80,.11,2.79),.80,.05),
-    ("8ab9b0",(6.27,-.64,2.43),.73,.18)]):
-    mat_balloon=finish_material("Balloon • latex "+str(i),rgb,.38,coat=.16)
-    o=shaper.lathe("Balloon membrane",[(r*scale,(h+.56)*scale) for r,h in profile],mat_balloon,z=-.56*scale)
-    o.location=pos;o.rotation_euler.y=lean;o["room_balloon"]=i
-    from mathutils import Euler
-    tip=Vector(pos)+Euler((0,lean,0)).to_matrix()@Vector((0,0,-.545*scale))
-    knot=ell("Balloon tied neck",tip,(.033,.027,.022),mat_balloon);knot["room_balloon"]=i
-    marker=bpy.data.objects.new("Balloon string start "+str(i),None);bpy.context.scene.collection.objects.link(marker)
+    ("d9909a",(5.43,-.13,2.44),.755,-.12),
+    ("e6bd7e",(5.80,.11,2.83),.795,.05),
+    ("8dbbb2",(6.27,-.64,2.47),.725,.18)]):
+    tip=balloon(bpy.context.collection,ell,i,rgb,pos,scale,lean)
+    marker=bpy.data.objects.new("Balloon string start "+str(i),None)
+    bpy.context.scene.collection.objects.link(marker)
     marker.location=tip;marker["room_marker"]="balloon_"+str(i)
-box('Floor magazine',(-2.67,-3.46,.162),(.80,.58,.048),mint,.034,-.18)
-box('Magazine art',(-2.67,-3.46,.190),(.46,.24,.008),cream,.022,-.18)
+book('Floor picture book',(-2.67,-3.16,.128),.792,.562,.060,'a5bba4',-.18,'lines')
 # Quiet room-model refinements: believable materials and furniture joinery.
 for x in [2.84,3.84,4.84]:
     box('Cupboard inset panel',(x,2.119,.77),(.73,.034,.94),sand,.056)
@@ -244,25 +264,31 @@ for x in [-3.40,-3.22,-3.04]:
     box('Chair curved back slat',(x,-.075,1.61),(.088,.09,.34),honey,.041)
 for x in [-4.33,-2.64]:
     line('Seat front piping',[(x-.68,1.444,1.037),(x-.46,1.407,1.058),(x+.45,1.407,1.059),(x+.68,1.444,1.037)],.021,jade)
-for x in [-4.55,-4.20]:
-    ell('Pillow covered button',(x,2.572,1.60),(.040,.023,.040),terr)
 for x in [-3.77,2.85]:
     for j in range(12):
         box('Rug side embroidery',(x,-3.28+j*.38,.126),(.033,.14,.012),terr,.008)
 line('Banner branch',[(-2.64,4.235,3.02),(-2.45,4.235,3.15),(-2.28,4.235,3.21)],.014,jade)
 for x,z in [(-2.51,3.14),(-2.37,3.19),(-2.24,3.24)]:
     leaf=ell('Print leaf',(x,4.228,z),(.064,.015,.027),jade);leaf.rotation_euler.y=-.58
-ell('Cat little bow knot',(-3.51,1.681,1.325),(.083,.048,.06),terr)
-for x in [-3.64,-3.38]:
-    ell('Cat little bow fold',(x,1.689,1.33),(.12,.045,.072),pink)
-# Move cabinet books out of the tea service grouping.
-for o in bpy.context.scene.objects:
-    if o.name.startswith(('Bookend','Little book')):
-        o.location.x-=4.28; o.location.y+=.11; o.location.z-=1.56
-# Table linen, sewn edging and a fold. It stays on the table in the tableware level.
-box('Folded sage linen',(.97,-.37,1.063),(.55,.36,.105),mint,.065,-.16)
-for i in range(8):
-    box('Linen stitched hem',(.744+i*.058,-.503-(i*.009),1.117),(.033,.016,.006),cream,.005,-.16)
+# Folded fabric napkin, clearly distinct from the thin book shapes.
+napkin=finish_material("Napkin • brushed sage linen","b1c7a8",.91,.34)
+napkin_hem=finish_material("Napkin • cream stitch","dfdec4",.86)
+nap=Studio.__new__(Studio);nap.collection=bpy.context.collection
+verts=[]; faces=[]; nx,ny=27,15
+for j in range(ny):
+    v=j/(ny-1)
+    for i in range(nx):
+        u=i/(nx-1)
+        px=.65+u*.67+.035*math.sin(v*3.1)-.052*v
+        py=-.12-v*.49+.063*math.sin(u*math.pi)-.09*u
+        pz=1.018+.071*math.exp(-((v-.38)/.32)**2)+.019*math.cos(u*math.pi*2)*math.sin(v*math.pi)
+        verts.append((px,py,pz))
+for j in range(ny-1):
+    for i in range(nx-1):
+        a=j*nx+i;faces.append((a,a+nx,a+nx+1,a+1))
+obj=nap.mesh("Sage linen draped folds",verts,faces,napkin)
+obj.modifiers.new("Cloth edge thickness","SOLIDIFY").thickness=.022
+line("Napkin rolled stitched hem",verts[-nx:],.013,napkin_hem)
 # Magazine spines, pillow seams and stitched details maintain the quiet silhouette at full-frame.
 paper=finish_material("Room • page edges","efe1c8",.91)
 sofa_cloth=finish_material("Room • sage upholstery","a6cba5",.88,.33)
@@ -271,34 +297,13 @@ honey.node_tree.nodes.get("Principled BSDF").inputs["Roughness"].default_value=.
 for o in bpy.context.scene.objects:
     if o.type=='MESH' and o.name.startswith(('Sofa back','Seat cushion','Sofa arm')):
         o.data.materials[0]=sofa_cloth
-for x,z,m in [(-4.66,1.54,terr),(-2.31,1.43,honey)]:
-    w=.32 if x < -4 else .245
-    pts=[(x+w*math.copysign(abs(math.cos(a))**.58,math.cos(a)),2.598 if x < -4 else 2.522,
-          z+w*.92*math.copysign(abs(math.sin(a))**.58,math.sin(a))) for a in [math.tau*i/48 for i in range(49)]]
-    line('Pillow softly corded seam',pts,.013,m)
-for x,y,z,w,d,ang in [(-1.34,-1.32,1.063,.724,.520,-.24),(.83,0,1.063,.695,.460,.12),
-                       (-2.67,-3.46,.168,.763,.551,-.18),(cx+.08,cy-.06,1.202,.555,.448,-.16)]:
-    box('Book sewn paper block',(x,y,z),(w,d,.052 if z>.2 else .027),paper,.019,ang)
-    # Put a few edges just inside the wrap so the spine and page block read separately.
-    for dz in [-.012,.002,.014]:
-        px=x+math.sin(ang)*d*.49;py=y-math.cos(ang)*d*.49
-        box('Quiet book page edge',(px,py,z+dz),(w*.89,.010,.003),sand,.002,ang)
-for sx in [-1,1]:
-    for j in range(3):
-        x=-3.52+sx*(.25+.028*j);z=1.764-.034*j
-        line('Cat muzzle whisker',[(x,1.567,z),(x+sx*.082,1.546,z+.009*(1-j))],.007,terr)
-ell('Cat muzzle left',(-3.574,1.563,1.744),(.095,.038,.052),cream)
-ell('Cat muzzle right',(-3.466,1.563,1.744),(.095,.038,.052),cream)
-for x in [-3.85,-3.24]:
-    for dx in [-.055,.052]:
-        line('Little paw seam',[(x+dx,1.591,1.265),(x+dx,1.578,1.237)],.007,sand)
 from tea_assets import tea_set, instance
 collection=tea_set()
 for key,location,yaw in [
     ('saucer',(-.88,-.39,1.004),.12),
     ('cup',(-.92,-.35,1.08),-.37),
     ('plate',(.10,-1.375,1.004),.23),
-    ('fork',(1.01,-1.30,1.004),-.62),
+    ('fork',(1.03,-1.51,1.004),-.62),
     ('bowl',(2.92,2.43,1.625),.09),
     ('teapot',(4.08,2.78,1.625),-.24),
 ]:

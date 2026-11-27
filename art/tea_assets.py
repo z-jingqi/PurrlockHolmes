@@ -36,8 +36,8 @@ class Studio:
         self.rose=glaze("Tea • blush rim","cc887f")
         self.honey=glaze("Tea • tea stain accent","c89965",.32)
         self.tea=glaze("Tea • amber infusion","a36c49",.20)
-        self.steel=glaze("Tea • satin silver","b2babe",.28,.69)
-        self.gray=glaze("Tea • cutlery engraving","8e9ca0",.35,.55)
+        self.steel=glaze("Tea • satin silver","bcc7ca",.40,.44)
+        self.gray=glaze("Tea • low contrast engraving","adbbbf",.49,.30)
 
     def mesh(self,name,verts,faces,material):
         mesh=bpy.data.meshes.new(name);mesh.from_pydata(verts,[],faces);mesh.update()
@@ -150,12 +150,14 @@ class Studio:
             self.lathe("Seated lid with glaze line",[(.002,.591),(.216,.591),(.243,.609),(.246,.626),(.223,.647),(.158,.676),(.002,.686)],self.sky)
             self.el("Rounded porcelain finial",(0,0,.718),(.071,.071,.044),self.ivory)
         elif key=="fork":
-            self.cut("Stamped handle and flared shoulder",[(-.059,-.452),(.055,-.452),(.069,-.417),(.044,-.26),(.029,-.056),(.039,.083),(.115,.18),(.104,.238),(-.104,.238),(-.114,.18),(-.041,.08),(-.031,-.056),(-.043,-.26),(-.069,-.414)],.031,self.steel)
-            for i in range(4):
-                x=(i-1.5)*.057
-                h=.424-.022*abs(i-1.5)
-                self.cut("Rounded taper tine "+str(i+1),[(x-.023,.198),(x+.022,.198),(x+.019,h-.035),(x+.010,h),(x-.011,h),(x-.019,h-.025)],.025,self.steel,.006)
-            self.cut("Recessed slim grip",[(-.014,-.391),(.015,-.38),(.012,-.158),(.005,-.13),(-.006,-.13),(-.014,-.155)],.032,self.gray,.002)
+            # Single stamped profile prevents dark seams between shoulder and tines.
+            outline=[(-.060,-.448),(.055,-.448),(.068,-.410),(.048,-.241),(.030,-.059),(.042,.093),(.115,.181)]
+            for j,x in enumerate([.089,.030,-.030,-.089]):
+                tip=.433-.016*abs(j-1.5)
+                outline += [(x+.024,.267),(x+.018,tip-.027),(x+.012,tip),(x-.012,tip),
+                            (x-.019,tip-.025),(x-.025,.253 if j<3 else .187)]
+            outline += [(-.111,.166),(-.044,.087),(-.030,-.054),(-.043,-.245),(-.069,-.406)]
+            self.cut("Single stamped handle, shoulder and four tines",outline,.028,self.steel,.005)
         collection.asset_mark()
         collection.asset_data.description=details
         for tag in ['Purrlock Holmes','Tableware','Afternoon Tea']:collection.asset_data.tags.new(tag)

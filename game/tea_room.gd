@@ -541,8 +541,10 @@ func _test_frame() -> void:
 		_clamp_pan()
 		pan=Vector2.ZERO
 		_test(_start_pixel("plate")==fixed,"Pan changed scene coordinates")
-		_pick_scene(Vector2(771,609)) # toy car is now static scenery
-		_test(decor.is_empty(),"Static props must not react")
+		for fixed_prop in [Vector2(767,644),Vector2(909,587),Vector2(219,519),
+				Vector2(323,573),Vector2(605,453),Vector2(851,650)]:
+			_pick_scene(fixed_prop)
+		_test(decor.is_empty() and flights.is_empty(),"Static props must not react or collect")
 		var face: Rect2=ART.CAT_HIT
 		_pick_scene(face.get_center())
 		_test(decor.has("cat"),"Cat did not react")

@@ -34,7 +34,7 @@ plants={o.instance_collection["asset_id"]:o for o in scene.objects
         and o.instance_collection.get("asset_id") in {"rubber_plant","lance_plant"}}
 assert len(plants)==2
 balloons=[[o for o in scene.objects if o.get("room_balloon")==i] for i in range(3)]
-assert all(len(group)==2 for group in balloons)
+assert all(len(group)==3 for group in balloons)
 cat=[o for o in scene.objects if o.name.startswith("Cat ")]
 cat_body=[o for o in cat if o.name.startswith(("Cat body","Cat little paw","Cat tail","Cat little bow"))]
 cat_head=[o for o in cat if o not in cat_body]
@@ -86,9 +86,11 @@ for o in geom:o.hide_render=o in animated
 scene.render.film_transparent=False
 scene.cycles.samples=samples
 render("room")
+if os.environ.get("PURRLOCK_REFRESH_BACKGROUND_ONLY")=="1":
+    raise SystemExit(0)
 
 # Same environment light and same pixels as the surrounding couch: feathered only at the patch edges.
-head_center=Vector((-3.52,1.95,1.76))
+head_center=Vector((-3.51,1.93,1.78))
 neutral={o:o.matrix_world.copy() for o in cat_head}
 # Small anticipatory blink, head lift, then a second blink at rest.
 cat_poses=[(.57,.22),(.10,.54),(.58,.93),(1,1),(1,.86),(1,.65),(1,.44),
@@ -101,9 +103,13 @@ for i,(blink,up) in enumerate(cat_poses):
         tr=m
         if obj.name.startswith("Cat dot eye"):
             tr=m@Matrix.Diagonal(Vector((1+.14*(1-blink),1,blink,1)))
+        if obj.name.startswith("Cat eye glint"):
+            obj.hide_render=blink<.70
         obj.matrix_world=pose@tr
     render(f"cat_{i:02d}",bounds["cat"])
-for obj,m in neutral.items():obj.matrix_world=m
+for obj,m in neutral.items():
+    obj.hide_render=False
+    obj.matrix_world=m
 
 for o in geom:o.hide_render=True
 scene.render.film_transparent=True
@@ -111,7 +117,12 @@ scene.cycles.samples=max(32,samples//2)
 scene.cycles.adaptive_threshold=.021
 for key,obj in targets.items():
     obj.hide_render=False
-    render(key,bounds[key])
+    if key=="fork":
+        scene.render.resolution_percentage=200
+        render(key,bounds[key])
+        scene.render.resolution_percentage=100
+    else:
+        render(key,bounds[key])
     obj.hide_render=True
 for i,group in enumerate(balloons):
     for o in group:o.hide_render=False

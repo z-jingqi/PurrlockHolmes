@@ -42,7 +42,11 @@ def pack(key,group,fix_size=False,patch=False,thumbnail=False):
     global x,y,row
     left,top,right,bottom=layout["bounds"][group]
     im=Image.open(args.stage/(key+".png")).convert("RGBA")
-    assert im.size==(right-left,bottom-top),(key,im.size,layout["bounds"][group])
+    expected=(right-left,bottom-top)
+    if key=="fork":
+        assert im.size==tuple(x*2 for x in expected)
+        im=im.resize(expected,Image.Resampling.LANCZOS)
+    assert im.size==expected,(key,im.size,layout["bounds"][group])
     if patch:
         # Soften the outer edge of the cat's lighting patch. No visible rectangular seam.
         rgb=clean(im.convert("RGB"))

@@ -126,8 +126,13 @@ class RoomProps(Studio):
             for k in range(n):
                 a=TAU*k/n
                 t=math.sin(a)
-                width=w*(.89+.17*t-.08*math.exp(-((t+.22)/.3)**2))
-                pts.append(transform((math.cos(a)*width+side*.025*t,t*l,z+.026*max(t,0)**4)))
+                width=w*(.95+.12*t-.055*math.exp(-((t+.19)/.29)**2))
+                # A slipper last is broad and blunt at the heel, not an ellipse
+                # squeezed into a point. Squarer heel quarters, a round toe.
+                cap=max(0.0,-t)
+                px=math.copysign(abs(math.cos(a))**(1-.41*cap),math.cos(a))*width
+                py=math.copysign(abs(t)**(.92-.23*cap),t)*l
+                pts.append(transform((px+side*.017*t,py,z+.026*max(t,0)**4)))
             return pts
         # Outsole, welt and footbed share the same asymmetric last.
         sections=[(.18,.326,.006),(.199,.355,.019),(.205,.361,.044),(.199,.354,.077),(.186,.338,.091),(.173,.323,.096)]
