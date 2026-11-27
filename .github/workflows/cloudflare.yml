@@ -27,9 +27,8 @@ jobs:
           GODOT="/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" GODOT_WEB_TEMPLATE=/tmp/purrlock-godot/web.zip sh tools/build-web.sh
           node tools/test-worker.mjs
           "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path . --import
-          for order in table,chair,cabinet table,cabinet,chair chair,table,cabinet chair,cabinet,table cabinet,chair,table cabinet,table,chair; do
-            "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --path . -- --test-furniture --order="$order"
-          done
+          "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --fixed-fps 60 --path . -- --test-level
+          "/tmp/purrlock-godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64" --headless --fixed-fps 60 --path . -- --test-level --cup-first
       - uses: actions/upload-artifact@v4
         with:
           name: cloudflare-build

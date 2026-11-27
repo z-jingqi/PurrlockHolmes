@@ -11,11 +11,8 @@ def mat(name,h):
     p=m.node_tree.nodes.get('Principled BSDF');p.inputs['Base Color'].default_value=m.diffuse_color;p.inputs['Roughness'].default_value=.82
     return m
 cream=mat('Milk','fff0da'); wood=mat('Honey beech','d99c68'); honey=mat('Pale oak','edbf86'); dark=mat('Cocoa ink','52394a'); mint=mat('Pistachio','a6cba5'); jade=mat('Leaf','659879'); pink=mat('Peach','ee9e9d'); red=mat('Berry','d96066'); blue=mat('Cloud blue','83abc7'); gold=mat('Butterscotch','edb95f'); sand=mat('Rice paper','e8d3b6'); silver=mat('Soft pewter','a5b8bd'); terr=mat('Terracotta','d58c6d'); glass=mat('Window blue','bbdce3'); wall=mat('Barley wall','eee1c6')
-active=None
 def finish(o,name,m):
     o.name=name;o.data.materials.append(m)
-    if active is not None:
-        o.parent=active;o['pick_id']=active['pick_id']
     return o
 def box(n,p,d,m,b=.07,az=0):
     bpy.ops.mesh.primitive_cube_add(size=1,location=p);o=bpy.context.object;o.dimensions=d;bpy.ops.object.transform_apply(location=False,rotation=False,scale=True);o.rotation_euler.z=az
@@ -42,16 +39,6 @@ def line(n,pts,r,m):
     c=bpy.data.curves.new(n,'CURVE');c.dimensions='3D';c.bevel_depth=r;c.bevel_resolution=3;s=c.splines.new('POLY');s.points.add(len(pts)-1)
     for k,p in zip(s.points,pts):k.co=(*p,1)
     o=bpy.data.objects.new(n,c);bpy.context.collection.objects.link(o);return finish(o,n,m)
-def item(i,n):
-    global active
-    active=bpy.data.objects.new(n,None);bpy.context.collection.objects.link(active);active['pick_id']=i
-def end():
-    global active
-    active=None
-def cup(x,y,z,m):
-    cyl('Cup body',(x,y,z+.21),.245,.41,m,.29);ring('Cup lip',(x,y,z+.42),.258,.033,m);ell('Cup inner shadow',(x,y,z+.412),(.232,.232,.012),dark);ring('Cup handle',(x+.33,y,z+.23),.145,.039,m,True)
-def dish(x,y,z,m,r=.44):
-    ell('Dish',(x,y,z+.078),(r,r,.10),m);ring('Dish rim',(x,y,z+.14),r*.84,.032,m)
 # envelope and room
 box('Diorama plinth',(0,0,-.26),(12.75,9.55,.48),honey,.26)
 for j in range(12):
@@ -154,32 +141,54 @@ ell('Balloon knot',(5.05,.16,1.96),(.072,.060,.088),red)
 line('Balloon thread',[(5.05,.16,1.94),(5,.16,1.61),(4.88,.15,1.23),(4.65,.13,.72)],.014,dark)
 box('Floor magazine',(-2.67,-3.46,.162),(.80,.58,.048),mint,.034,-.18)
 box('Magazine art',(-2.67,-3.46,.190),(.46,.24,.008),cream,.022,-.18)
-# Seven uniquely clickable dishware groups. All sub-meshes share their parent ID.
-item(1,'01 · Blue cup');cup(-.85,-.39,.997,blue);end()
-item(2,'02 · Shell plate');dish(.08,-1.30,1.0,cream,.53);end()
-item(3,'03 · Fork'); 
-box('Fork handle',(.60,-.97,1.067),(.093,.56,.05),silver,.024,-.50)
-box('Fork head',(.77,-.65,1.068),(.27,.18,.048),silver,.022,-.50)
-for j in range(4):box('Fork tine',(.75+j*.055,-.55+j*.029,1.068),(.032,.19,.047),silver,.014,-.50)
-end()
-# Fabric masks the fork handle so the teeth remain a clue.
-box('Folded linen',(.46,-1.18,1.125),(.48,.44,.085),mint,.075,-.38)
-item(4,'04 · Peach bowl')
-ell('Bowl body',(3.14,2.39,1.82),(.38,.38,.23),pink)
-ring('Bowl rim',(3.14,2.39,1.99),.353,.042,pink)
-ell('Bowl inner',(3.14,2.39,1.978),(.317,.317,.025),terr)
-end()
-item(5,'05 · Teaspoon')
-ell('Spoon bowl',(-3.09,-2.30,.174),(.139,.191,.035),silver)
-box('Spoon handle',(-3.09,-2.62,.176),(.075,.51,.05),silver,.028)
-end()
-item(6,'06 · Teapot')
-ell('Teapot belly',(2.19,-2.91,.43),(.47,.42,.36),mint)
-ring('Teapot handle',(2.66,-2.91,.49),.21,.059,jade,True)
-line('Teapot spout',[(1.91,-2.91,.41),(1.70,-2.92,.50),(1.52,-2.92,.73)],.103,mint)
-cyl('Teapot lid',(2.19,-2.91,.74),.27,.074,jade);ell('Teapot knob',(2.19,-2.91,.83),(.076,.076,.072),cream)
-end()
-item(7,'07 · Saucer');dish(-5.17,.42,.079,blue,.41);end()
+# Quiet room-model refinements: believable materials and furniture joinery.
+for x in [2.84,3.84,4.84]:
+    box('Cupboard inset panel',(x,2.119,.77),(.73,.034,.94),sand,.056)
+    box('Cupboard central raised panel',(x,2.090,.77),(.62,.036,.83),cream,.056)
+    ell('Turned cupboard pull',(x+.22,2.032,.84),(.062,.058,.065),wood)
+for x in [2.46,5.20]:
+    for y in [2.31,3.17]:
+        box('Cabinet taper foot',(x,y,.14),(.23,.22,.155),wood,.045)
+box('Cabinet apron',(3.84,2.20,.168),(3.07,.10,.16),wood,.045)
+box('Cabinet softly rounded top lip',(3.84,2.18,1.539),(3.29,.13,.085),cream,.034)
+for x in [-3.68,-2.76]:
+    box('Chair side stretcher',(x,-.53,.32),(.085,.93,.11),honey,.024)
+for x in [-3.40,-3.22,-3.04]:
+    box('Chair curved back slat',(x,-.075,1.61),(.088,.09,.34),honey,.041)
+for x in [-4.33,-2.64]:
+    line('Seat front piping',[(x-.68,1.444,1.037),(x-.46,1.407,1.058),(x+.45,1.407,1.059),(x+.68,1.444,1.037)],.021,jade)
+for x in [-4.55,-4.20]:
+    ell('Pillow covered button',(x,2.572,1.60),(.040,.023,.040),terr)
+for x in [-3.77,2.85]:
+    for j in range(12):
+        box('Rug side embroidery',(x,-3.28+j*.38,.126),(.033,.14,.012),terr,.008)
+line('Banner branch',[(-2.64,4.235,3.02),(-2.45,4.235,3.15),(-2.28,4.235,3.21)],.014,jade)
+for x,z in [(-2.51,3.14),(-2.37,3.19),(-2.24,3.24)]:
+    leaf=ell('Print leaf',(x,4.228,z),(.064,.015,.027),jade);leaf.rotation_euler.y=-.58
+ell('Cat little bow knot',(-3.51,1.681,1.325),(.083,.048,.06),terr)
+for x in [-3.64,-3.38]:
+    ell('Cat little bow fold',(x,1.689,1.33),(.12,.045,.072),pink)
+# Move cabinet books out of the tea service grouping.
+for o in bpy.context.scene.objects:
+    if o.name.startswith(('Bookend','Little book')):
+        o.location.x-=4.28; o.location.y+=.11; o.location.z-=1.56
+# Table linen, sewn edging and a fold. It stays on the table in the tableware level.
+box('Folded sage linen',(.97,-.37,1.063),(.55,.36,.105),mint,.065,-.16)
+for i in range(8):
+    box('Linen stitched hem',(.744+i*.058,-.503-(i*.009),1.117),(.033,.016,.006),cream,.005,-.16)
+import sys
+sys.path.insert(0,str(ROOT/'art'))
+from tea_assets import tea_set, instance
+collection=tea_set()
+for key,location,yaw in [
+    ('saucer',(-.88,-.39,1.004),.12),
+    ('cup',(-.92,-.35,1.08),-.37),
+    ('plate',(.10,-1.375,1.004),.23),
+    ('fork',(1.01,-1.30,1.004),-.62),
+    ('bowl',(2.92,2.43,1.625),.09),
+    ('teapot',(4.08,2.78,1.625),-.24),
+]:
+    instance(key,collection[key],location,yaw)
 # Lightweight original illustration, lit like a small set.
 def aim(o,p):o.rotation_euler=(Vector(p)-o.location).to_track_quat('-Z','Y').to_euler()
 bpy.ops.object.camera_add(location=(8.0,-15.6,14.4)); cam=bpy.context.object;aim(cam,(0,.06,1.10));cam.data.lens=46

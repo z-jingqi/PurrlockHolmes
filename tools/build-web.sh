@@ -15,7 +15,7 @@ scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 mkdir -p "$scratch/project/game" "$scratch/project/assets" "$scratch/export"
 cp game/*.gd game/ui-zh.otf "$scratch/project/game/"
-cp assets/room.glb assets/room.webp assets/flight-*.webp assets/hint-ray.png assets/paw-box.svg "$scratch/project/assets/"
+cp assets/room.glb assets/room.webp assets/tea-sprites.webp assets/hint-ray.png assets/paw-box.svg "$scratch/project/assets/"
 cp web/index.html "$scratch/project/shell.html"
 cp main.tscn project.godot "$scratch/project/"
 cat > "$scratch/project/export_presets.cfg" <<PRESET

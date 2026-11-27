@@ -1,90 +1,59 @@
-"""Export live Blender props and bake the stationary room with its original soft lights."""
+"""Bake the tea level from art/room.blend. Geometry, pose and lighting have one source."""
 from pathlib import Path
-import math
-import re
-import sys
-import bpy
-from bpy_extras.object_utils import world_to_camera_view
+import bpy, os, re
 
 root = Path(bpy.data.filepath).resolve().parents[1]
-out = root / 'assets'
-scene = bpy.context.scene
-path = {
-    'Tea table':'table', 'Low table leg':'table',
-    'Sideboard':'cabinet', 'Sideboard top':'cabinet', 'Linen cupboard door':'cabinet', 'Drawer pull':'cabinet',
-    'Chair leg':'chair', 'Chair seat':'chair', 'Chair cushion':'chair', 'Chair upright':'chair', 'Chair back':'chair',
-    'Chair book':'chair_book','Chair book label':'chair_book',
-    'Storybook':'book', 'Book label':'book', 'Notebook':'notebook', 'Clementine':'orange', 'Clementine leaf':'orange',
-    'Toy car chassis':'car','Toy car cab':'car','Toy car wheel':'car',
-    'Wooden toy block':'block', 'Red balloon':'balloon', 'Balloon knot':'balloon','Balloon thread':'balloon',
-}
-dish = {1:'cup',2:'plate',3:'fork',4:'bowl'}
-grouped = {}
-skip = []
+stage=Path(os.environ.get("PURRLOCK_BAKE_DIR",str(root/"art"/".bake")))
+stage.mkdir(parents=True,exist_ok=True)
+scene=bpy.context.scene
+assets={o["tea_key"]:o for o in scene.objects if "tea_key" in o}
+expect={"saucer","cup","plate","fork","bowl","teapot"}
+assert set(assets)==expect
+decoys={}
 for obj in scene.objects:
-    base = re.sub(r'\.\d{3,}$','',obj.name)
-    key = dish.get(obj.get('pick_id',-1), path.get(base))
-    if base in {'Plant pot','Plant stalk','Rubber plant leaf','Pot earth'}:
-        x = obj.matrix_world.translation.x
-        if obj.type == 'CURVE':
-            point = obj.data.splines[0].points[0].co.to_3d()
-            x = (obj.matrix_world @ point).x
-        if x > 4.:
-            key = 'plant'
-    if base == 'Little book':
-        index = round((obj.location.x - 3.57) / .18)
-        key = f'cab_book{index}'
-        obj.location.z = 1.62 + (.47 - index*.04)*.5
-    if base == 'Bookend':
-        key = f'cab_stop{int(obj.location.x > 4.)}'
-    if base == 'Wooden toy block':
-        key = 'blocks' if obj.location.x > 0 else 'block'
-    if base == 'Folded linen':
-        skip.append(obj) # replaced by the deforming table-edge towel
-    if key and obj.type in {'MESH','CURVE'}:
-        grouped[obj] = (key,base)
+    name=re.sub(r'\.\d{3,}$','',obj.name)
+    if name.startswith("Toy car"):key="car"
+    elif name=="Wooden toy block":key="blocks" if obj.location.x>0 else "block"
+    elif name in {"Red balloon","Balloon knot","Balloon thread"}:key="balloon"
+    else:continue
+    decoys[obj]=(key,name)
 
-if "--models-only" not in sys.argv:
-    # The clean plate retains the original AgX render and the stationary room, not the furniture.
-    # Keep the original camera aspect and slightly lower sample noise with denoising.
-    scene.render.resolution_x = 1200
-    scene.render.resolution_y = 896
-    scene.render.resolution_percentage = 100
-    scene.render.threads_mode = 'FIXED'
-    scene.render.threads = 8
-    scene.cycles.samples = 24
-    scene.cycles.use_denoising = False
-    scene.render.image_settings.file_format = 'WEBP'
-    scene.render.image_settings.quality = 91
-    for obj in [*grouped, *skip]:
-        obj.hide_render=True
-    scene.render.filepath = str(out/'room.webp')
+scene.render.resolution_x=1200
+scene.render.resolution_y=896
+scene.render.resolution_percentage=100
+scene.render.threads_mode='FIXED'
+scene.render.threads=8
+scene.render.image_settings.file_format='PNG'
+scene.render.image_settings.color_mode='RGBA'
+scene.cycles.samples=int(os.environ.get("PURRLOCK_SAMPLES","128"))
+scene.cycles.use_adaptive_sampling=True
+scene.cycles.adaptive_threshold=.012
+scene.cycles.use_denoising=os.environ.get("PURRLOCK_OIDN")=="1"
+for o in [*assets.values(),*decoys]:o.hide_render=True
+scene.render.filepath=str(stage/"room.png")
+if os.environ.get("PURRLOCK_KEEP_BACKGROUND")!="1" or not (stage/"room.png").is_file():
     bpy.ops.render.render(write_still=True)
 
-    # Bake isolated sprites for the original lift-and-arc animation.
-    static = [o for o in scene.objects if o.type in {'MESH','CURVE'} and o not in grouped]
-    for obj in static: obj.hide_render=True
-    scene.render.film_transparent = True
-    scene.render.image_settings.color_mode = 'RGBA'
-    scene.cycles.samples = 16
-    for target in ['table','chair','cabinet']:
-        current = [obj for obj,(key,name) in grouped.items() if key==target]
-        for obj in current: obj.hide_render=False
-        scene.render.filepath = str(out/f'flight-{target}.webp')
-        bpy.ops.render.render(write_still=True)
-        for obj in current: obj.hide_render=True
+# Transparent renders provide the exact same pixels at rest, during hints and during pickup.
+for o in scene.objects:
+    if o.type in {'MESH','CURVE'}:o.hide_render=True
+scene.render.film_transparent=True
+scene.cycles.samples=max(32,scene.cycles.samples//2)
+scene.cycles.adaptive_threshold=.025
+for key,o in assets.items():
+    o.hide_render=False
+    scene.render.filepath=str(stage/(key+".png"))
+    bpy.ops.render.render(write_still=True)
+    o.hide_render=True
 
-bpy.context.view_layer.update()
-bpy.ops.object.select_all(action='DESELECT')
-for obj,(key,name) in grouped.items():
-    if key in {"table","chair","cabinet"}:continue # baked furniture, collision is kept in Godot
-    for mod in obj.modifiers:
-        if mod.type=='BEVEL':mod.segments=2
-    transform = obj.matrix_world.copy()
-    obj.parent=None
-    obj.matrix_world=transform
-    obj.name=f'{key}__{name}'
-    obj.select_set(True)
-bpy.ops.export_scene.gltf(filepath=str(out/'room.glb'),export_format='GLB',
+# For interactive distractors only. Non-interactive furniture belongs to the baked room.
+bpy.ops.object.select_all(action="DESELECT")
+for o,(key,name) in decoys.items():
+    for mod in o.modifiers:
+        if mod.type=='BEVEL':mod.segments=3
+    transform=o.matrix_world.copy()
+    o.parent=None;o.matrix_world=transform
+    o.name=f'{key}__{name}';o.select_set(True)
+bpy.ops.export_scene.gltf(filepath=str(root/'assets/room.glb'),export_format='GLB',
                          use_selection=True,export_apply=True,export_texcoords=False,
                          export_cameras=False,export_lights=False,export_animations=False)

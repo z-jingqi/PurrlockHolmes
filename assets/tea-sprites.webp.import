@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dx25gc6wj8ems"
-path="res://.godot/imported/flight-chair.webp-e38619ae73d61d32cd45a150595e22ab.ctex"
+uid="uid://cpodfmli6lxuq"
+path="res://.godot/imported/tea-sprites.webp-05368e0cbb182e2e30a3f1922f2c11b2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/flight-chair.webp"
-dest_files=["res://.godot/imported/flight-chair.webp-e38619ae73d61d32cd45a150595e22ab.ctex"]
+source_file="res://assets/tea-sprites.webp"
+dest_files=["res://.godot/imported/tea-sprites.webp-05368e0cbb182e2e30a3f1922f2c11b2.ctex"]
 
 [params]
 

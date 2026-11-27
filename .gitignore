@@ -5,3 +5,5 @@ __pycache__/
 assets/room.png
 dist/
 assets/room.png.import
+
+/art/.bake/
