@@ -9,6 +9,9 @@ const types = {
   "/assets/pickups.webp":"image/webp",
   "/assets/pickups.json":"application/json; charset=utf-8",
   "/assets/paw-box.svg":"image/svg+xml",
+  "/assets/wrong.webp":"image/webp",
+  "/assets/wrong.png":"image/png",
+  "/assets/wrong.json":"application/json; charset=utf-8",
 };
 const files = Object.fromEntries(Object.entries(types).map(([p,t]) => [p,[t,readFileSync("dist"+p).toString("base64")]]));
 writeFileSync("dist/worker.mjs", `const files=${JSON.stringify(files)};

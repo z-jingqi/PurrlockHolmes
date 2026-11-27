@@ -47,3 +47,14 @@ python3 art/pack_pickups.py  # 需要 Pillow
 ```
 
 可用 `PURR_PICKUP_DIR` 指定中间图输出目录。游戏不会加载整张干净房间，只按实际收集状态叠放各件物品的局部背景。
+
+### 分类提示与干扰道具
+
+收纳匣上方仅显示本关目标类别和已收集数。提示会挑一个未收集目标，显示约三秒的呼吸与顺时针交错光线。点击可交互的干扰道具会短暂左右晃动；固定家具、房间背景、装饰和拖动不触发。
+
+干扰项由 `art/render_wrong.py` 中的名单决定，不是所有场景模型。重新烘焙：
+
+```sh
+blender -b art/room.blend --python art/render_wrong.py
+python3 art/pack_wrong.py  # 需要 Pillow
+```

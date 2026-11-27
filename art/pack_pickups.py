@@ -6,6 +6,7 @@ root=Path(__file__).resolve().parents[1]
 out=Path(os.environ.get("PURR_PICKUP_DIR","/tmp/purr-pickup"))
 clean=Image.open(out/'clean.png').convert('RGBA')
 mask=Image.open(root/'assets/pick.png').getchannel('R')
+beauty=Image.open(root/'assets/room.webp').convert('RGBA')
 tiles=[]; meta={}
 for i in range(1,8):
     visible=mask.point(lambda v:255 if v==i*32 else 0)
@@ -21,7 +22,10 @@ for i in range(1,8):
     assert box and l>=box[0]-2 and r<=box[2]+2,(i,box,(l,t,r,b))
     sprite=item.crop(box)
     meta[str(i)]={'origin':[x0,y0],'center':[(box[0]+box[2])/2,(box[1]+box[3])/2]}
-    tiles.extend([(str(i),'patch',patch),(str(i),'sprite',sprite)])
+    hint=beauty.crop((l,t,r,b))
+    hint.putalpha(visible.crop((l,t,r,b)))
+    meta[str(i)]['hint_center']=[(l+r)/2,(t+b)/2]
+    tiles.extend([(str(i),'patch',patch),(str(i),'sprite',sprite),(str(i),'hint',hint)])
 atlas=Image.new('RGBA',(880,760))
 x=y=row=0
 for i,kind,tile in tiles:

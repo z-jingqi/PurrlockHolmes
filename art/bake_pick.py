@@ -4,7 +4,7 @@ from pathlib import Path
 from mathutils import Vector
 from mathutils.bvhtree import BVHTree
 
-def bake(path):
+def bake(path, key='pick_id', stride=32):
     scene = bpy.context.scene
     deps = bpy.context.evaluated_depsgraph_get()
     verts, polys, ids = [], [], []
@@ -17,7 +17,7 @@ def bake(path):
         verts.extend(ev.matrix_world @ p.co for p in mesh.vertices)
         for p in mesh.polygons:
             polys.append(tuple(start+j for j in p.vertices))
-            ids.append(obj.get('pick_id',0))
+            ids.append(obj.get(key,0))
         ev.to_mesh_clear()
     bvh = BVHTree.FromPolygons(verts, polys)
     w,h = scene.render.resolution_x, scene.render.resolution_y
@@ -37,7 +37,7 @@ def bake(path):
         for x, dx in enumerate(rays):
             _,_,face,_ = bvh.ray_cast(origin,base+dx)
             if face is not None:
-                buf[y*(w*3+1)+1+3*x] = ids[face]*32
+                buf[y*(w*3+1)+1+3*x] = ids[face]*stride
     def chunk(tag, data):
         return struct.pack('>I', len(data)) + tag + data + struct.pack('>I', zlib.crc32(tag+data))
     Path(path).write_bytes(b'\x89PNG\r\n\x1a\n'+chunk(b'IHDR',struct.pack('>2I5B',w,h,8,2,0,0,0))+chunk(b'IDAT',zlib.compress(buf,9))+chunk(b'IEND',b''))
