@@ -44,19 +44,10 @@ const FRAMES := {
 	"lance_plant_14": [Rect2(113,659,104,110),Vector2(968,307)],
 	"lance_plant_15": [Rect2(223,659,104,110),Vector2(968,307)],
 	"lance_plant_16": [Rect2(333,659,104,110),Vector2(968,307)],
-	"cat_00": [Rect2(443,659,127,120),Vector2(392,230)],
-	"cat_01": [Rect2(576,659,127,120),Vector2(392,230)],
-	"cat_02": [Rect2(3,785,127,120),Vector2(392,230)],
-	"cat_03": [Rect2(136,785,127,120),Vector2(392,230)],
-	"cat_04": [Rect2(269,785,127,120),Vector2(392,230)],
-	"cat_05": [Rect2(402,785,127,120),Vector2(392,230)],
-	"cat_06": [Rect2(535,785,127,120),Vector2(392,230)],
-	"cat_07": [Rect2(3,911,127,120),Vector2(392,230)],
-	"cat_08": [Rect2(136,911,127,120),Vector2(392,230)],
-	"cat_09": [Rect2(269,911,127,120),Vector2(392,230)],
-	"cat_10": [Rect2(402,911,127,120),Vector2(392,230)],
+
+
 }
-const CLIPS := {"rubber_plant": ["rubber_plant_00", "rubber_plant_01", "rubber_plant_02", "rubber_plant_03", "rubber_plant_04", "rubber_plant_05", "rubber_plant_06", "rubber_plant_07", "rubber_plant_08", "rubber_plant_09", "rubber_plant_10", "rubber_plant_11", "rubber_plant_12", "rubber_plant_13", "rubber_plant_14", "rubber_plant_15", "rubber_plant_16"], "lance_plant": ["lance_plant_00", "lance_plant_01", "lance_plant_02", "lance_plant_03", "lance_plant_04", "lance_plant_05", "lance_plant_06", "lance_plant_07", "lance_plant_08", "lance_plant_09", "lance_plant_10", "lance_plant_11", "lance_plant_12", "lance_plant_13", "lance_plant_14", "lance_plant_15", "lance_plant_16"], "cat": ["cat_00", "cat_01", "cat_02", "cat_03", "cat_04", "cat_05", "cat_06", "cat_07", "cat_08", "cat_09", "cat_10"]}
+const CLIPS := {"rubber_plant": ["rubber_plant_00", "rubber_plant_01", "rubber_plant_02", "rubber_plant_03", "rubber_plant_04", "rubber_plant_05", "rubber_plant_06", "rubber_plant_07", "rubber_plant_08", "rubber_plant_09", "rubber_plant_10", "rubber_plant_11", "rubber_plant_12", "rubber_plant_13", "rubber_plant_14", "rubber_plant_15", "rubber_plant_16"], "lance_plant": ["lance_plant_00", "lance_plant_01", "lance_plant_02", "lance_plant_03", "lance_plant_04", "lance_plant_05", "lance_plant_06", "lance_plant_07", "lance_plant_08", "lance_plant_09", "lance_plant_10", "lance_plant_11", "lance_plant_12", "lance_plant_13", "lance_plant_14", "lance_plant_15", "lance_plant_16"]}
 const MARKERS := {
 	"tether": Vector2(938.14,592.70),
 	"balloon_0": Vector2(979.41,519.86),
@@ -64,4 +55,3 @@ const MARKERS := {
 	"balloon_2": Vector2(1024.83,557.13),
 	"cup_drop": Vector2(0.14,4.14),
 }
-const CAT_HIT := Rect2(406,243,99,103)

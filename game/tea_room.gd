@@ -1,6 +1,7 @@
 extends Control
 ## Case 01. Only tableware is collectible. Every view shares the fixed Blender camera.
 const TEDDY := preload("res://game/room_teddy.gd")
+const CAT := preload("res://game/room_cat.gd")
 const BACKDROP := preload("res://assets/room.webp")
 const ATLAS := preload("res://assets/tea-sprites.webp")
 const ART := preload("res://game/tea_frames.gd")
@@ -15,7 +16,6 @@ const DRAW_ORDER := ["bowl","teapot","saucer","cup","plate","fork"]
 const PLANTS := ["rubber_plant","lance_plant"]
 const BALLOONS := ["balloon_0","balloon_1","balloon_2"]
 const RIBBON_COLORS := [Color("#a57977"),Color("#b3916c"),Color("#769489")]
-const CAT_TIMES := [.045,.09,.15,.22,.29,.36,.43,.50,.55,.615,.69]
 const CUP_SETTLE := .27
 const CATEGORY := "餐具"
 const RENDER_SIZE := Vector2(1200,896)
@@ -26,6 +26,7 @@ const DURATION := .58
 const HINT_SECONDS := 3.0
 var backdrop_layer: Node2D
 var teddy: Node2D
+var cat: Node2D
 var hud_layer: Node2D
 var cup_age := -1.0
 var elapsed := 0.0
@@ -61,6 +62,8 @@ func _ready() -> void:
 	add_child(backdrop_layer)
 	teddy=TEDDY.new()
 	add_child(teddy)
+	cat=CAT.new()
+	add_child(cat)
 	hud_layer=Node2D.new()
 	hud_layer.draw.connect(_draw_hud)
 	add_child(hud_layer)
@@ -244,6 +247,9 @@ func _redraw() -> void:
 	if teddy:
 		teddy.position=_origin()
 		teddy.scale=Vector2.ONE*_scale()
+	if cat:
+		cat.position=_origin()
+		cat.scale=Vector2.ONE*_scale()
 	if hud_layer:hud_layer.queue_redraw()
 
 func _start_pixel(key: String) -> Vector2:
@@ -288,15 +294,10 @@ func _draw() -> void:
 func _clip_frame(key: String) -> String:
 	var age: float=decor.get(key,-1.0)
 	var frames: Array=CLIPS[key]
-	if key!="cat":
-		return frames[clampi(roundi(maxf(0,age)*20),0,frames.size()-1)]
-	if age<0:return ""
-	for i in range(CAT_TIMES.size()):
-		if age<CAT_TIMES[i]:return frames[i]
-	return ""
+	return frames[clampi(roundi(maxf(0,age)*20),0,frames.size()-1)]
 
 func _draw_decor(f: float) -> void:
-	for key: String in PLANTS+["cat"]:
+	for key: String in PLANTS:
 		var frame:=_clip_frame(key)
 		if frame.is_empty():continue
 		var spr: AtlasTexture=sprites[frame]
@@ -440,7 +441,7 @@ func _alpha_hit(key: String,pixel: Vector2) -> bool:
 	return _art_alpha(key,rel)
 
 func _decor_at(pixel: Vector2) -> String:
-	if ART.CAT_HIT.has_point(pixel):return "cat"
+	if cat.contains(pixel):return "cat"
 	for key in PLANTS:
 		var frame:=_clip_frame(key)
 		var top: Vector2=FRAMES[frame][1]
@@ -506,9 +507,10 @@ func _process(dt: float) -> void:
 	for key in decor.keys():
 		decor[key]+=dt
 		var duration:=.80
-		if key=="cat":duration=CAT_TIMES[-1]
+		if key=="cat":duration=CAT.DURATION
 		if key=="balloons":duration=2.03
 		if decor[key]>=duration:decor.erase(key)
+	cat.set_reaction(decor.get("cat",-1.0))
 	bump=move_toward(bump,0.0,dt*3.7)
 	_redraw()
 
@@ -562,8 +564,9 @@ func _test_frame() -> void:
 				Vector2(323,573),Vector2(605,453),Vector2(851,650)]:
 			_pick_scene(fixed_prop)
 		_test(decor.is_empty() and flights.is_empty(),"Static props must not react or collect")
-		var face: Rect2=ART.CAT_HIT
-		_pick_scene(face.get_center())
+		_test(cat.model.find_children("*","MeshInstance3D",true,false).size()==23,"Cat mesh incomplete")
+		_test(not cat.contains(Vector2(399,269)) and not cat.contains(Vector2(523,323)),"Cat hitbox covers the sofa")
+		_pick_scene(CAT.FACE)
 		_test(decor.has("cat"),"Cat did not react")
 		for plant in PLANTS:
 			var frame:=_clip_frame(plant)
@@ -585,11 +588,13 @@ func _test_frame() -> void:
 		_pick_scene(_balloon_geometry(1,_balloon_pose(1))[0])
 		_test(decor.has("balloons") and taken.is_empty(),"Balloon response changed objective")
 	if ticks==18:
-		_test(_clip_frame("rubber_plant")!=CLIPS["rubber_plant"][0] and not _clip_frame("cat").is_empty(),"Missing leaf or cat animation")
+		_test(_clip_frame("rubber_plant")!=CLIPS["rubber_plant"][0] and cat.active and cat.head.position.y>cat.home.y,"Missing leaf or cat animation")
 		var end:=_balloon_geometry(1,_balloon_pose(1))[1]
 		var ribbon:=_ribbon_curve(1,end,elapsed)
 		_test(ribbon[0].is_equal_approx(MARKERS["tether"]) and ribbon[-1].is_equal_approx(end),"Ribbon did not maintain both tie points")
 		_test(taken.is_empty() and flights.is_empty(),"Decorative actions affected objective")
+	if ticks==64:
+		_test(not cat.active and cat.head.position==cat.home and cat.head.rotation==Vector3.ZERO,"Cat did not return to idle")
 	for i in range(TARGETS.size()):
 		var phase:=24+i*63
 		var key: String=test_order[i]

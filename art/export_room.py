@@ -1,4 +1,4 @@
-"""Bake the first room, collectible layers and short character animations. No live geometry ships."""
+"""Bake the first room, collectible layers and short plant animations."""
 import json
 import math
 import os
@@ -35,11 +35,8 @@ plants={o.instance_collection["asset_id"]:o for o in scene.objects
 assert len(plants)==2
 balloons=[[o for o in scene.objects if o.get("room_balloon")==i] for i in range(3)]
 assert all(len(group)==3 for group in balloons)
-cat=[o for o in scene.objects if o.name.startswith("Cat ")]
-cat_body=[o for o in cat if o.name.startswith(("Cat body","Cat little paw","Cat tail","Cat little bow"))]
-cat_head=[o for o in cat if o not in cat_body]
 geom=[o for o in scene.objects if o.type in {"MESH","CURVE"} or o.instance_type=="COLLECTION"]
-animated=[*targets.values(),*plants.values(),*(o for group in balloons for o in group)]
+animated=[*(o for o in geom if o.name.startswith("Cat ")),*targets.values(),*plants.values(),*(o for group in balloons for o in group)]
 
 bpy.context.view_layer.update()
 
@@ -61,7 +58,6 @@ def crop_bounds(objects,pad):
 
 bounds={key:crop_bounds([obj],11 if key in targets else 15) for key,obj in (targets|plants).items()}
 for i,group in enumerate(balloons):bounds[f"balloon_{i}"]=crop_bounds(group,7)
-bounds["cat"]=crop_bounds(cat_head,15)
 markers={o["room_marker"]:[round(v,2) for v in pixel(o.location)] for o in scene.objects if "room_marker" in o}
 # Upright cup may settle a few pixels lower if its supporting saucer is removed.
 cup_pos=targets["cup"].location
@@ -88,28 +84,6 @@ scene.cycles.samples=samples
 render("room")
 if os.environ.get("PURRLOCK_REFRESH_BACKGROUND_ONLY")=="1":
     raise SystemExit(0)
-
-# Same environment light and same pixels as the surrounding couch: feathered only at the patch edges.
-head_center=Vector((-3.51,1.93,1.78))
-neutral={o:o.matrix_world.copy() for o in cat_head}
-# Small anticipatory blink, head lift, then a second blink at rest.
-cat_poses=[(.57,.22),(.10,.54),(.58,.93),(1,1),(1,.86),(1,.65),(1,.44),
-           (.62,.28),(.12,.16),(.58,.07),(.92,.02)]
-for i,(blink,up) in enumerate(cat_poses):
-    lift=Matrix.Translation(Vector((0,-.011,.075))*up)
-    pitch=Matrix.Rotation(-.093*up,4,'X')
-    pose=lift@Matrix.Translation(head_center)@pitch@Matrix.Translation(-head_center)
-    for obj,m in neutral.items():
-        tr=m
-        if obj.name.startswith("Cat dot eye"):
-            tr=m@Matrix.Diagonal(Vector((1+.14*(1-blink),1,blink,1)))
-        if obj.name.startswith("Cat eye glint"):
-            obj.hide_render=blink<.70
-        obj.matrix_world=pose@tr
-    render(f"cat_{i:02d}",bounds["cat"])
-for obj,m in neutral.items():
-    obj.hide_render=False
-    obj.matrix_world=m
 
 for o in geom:o.hide_render=True
 scene.render.film_transparent=True

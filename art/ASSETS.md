@@ -45,6 +45,18 @@ python3 art/pack_bear.py /tmp/purrlock-bake/bear /tmp/purrlock-bake/room-with-te
 | felt_slippers | Room · Felt slippers | 左右脚楦、橡胶底、抓绒内里、包边与缝线 | 0.34 kg / 双 |
 | reed_basket | Room · Linen-lined rattan basket | 藤条上下交织、卷边及蓝色亚麻衬布 | 0.57 kg |
 
-质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：固定家具、玩具及拖鞋住在同一张底图里；仅猫、两株植物的叶片和三只气球会响应点击。叶片分别以自己的叶柄接点转动，猫的头部和眨眼是剪好的同光影画面，乳胶气球是透明图，绳子是 Godot 绘制的柔性曲线，落点来自 Blender 的小熊爪上锚点。视角和渲染位置由 `room-layout.json` 中间数据传给打包器，不需在引擎中手摆模型。
+质量是供以后给刚体设定质量的参考值，存在 Blender 集合的 `mass_kg` 中，缩放实例时应重新评估。第一关仍然仅收集餐具：固定家具、玩具及拖鞋住在同一张底图里；仅猫、两株植物的叶片和三只气球会响应点击。叶片分别以自己的叶柄接点转动，猫在独立的固定机位视口中以真实 3D 模型抬头、眨眼，乳胶气球是透明图，绳子是 Godot 绘制的柔性曲线，落点来自 Blender 的小熊爪上锚点。视角和渲染位置由 `room-layout.json` 中间数据传给打包器，不需在引擎中手摆模型。
 
-焦点物件的软布靠枕、奶油猫与乳胶气球由 `art/hero_props.py` 建立；整屋可见物件的分类和落点见 [第一关清单](../docs/level-01-inventory.md)。叉子在 Blender 中以 2 倍尺寸烘焙，由打包器缩到同一画布尺寸。
+焦点物件的软布靠枕与乳胶气球由 `art/hero_props.py` 建立；整屋可见物件的分类和落点见 [第一关清单](../docs/level-01-inventory.md)。叉子在 Blender 中以 2 倍尺寸烘焙，由打包器缩到同一画布尺寸。
+
+## 奶油猫 · Cream cat
+
+运行时网格是 `assets/cat.glb`：耳朵、脸、猫爪和领结均有独立的立体结构，姿态纹理贴在网格 UV 而非屏幕上。点击时头部转动，闭眼纹理随面部一起移动。只有在动画期间更新猫的独立视口；原参考垫子不进入关卡。换机位复用时应为新视角制作材质，不能把只校准过正面机位的光色贴图当作完整 PBR 材质。
+
+如需重建，使用已拟合的猫模型源和带边缘延展的参考 UV 图。源文件无需作为游戏资源提交。先重新打包主场景并重建小熊底图，再运行：
+
+```sh
+blender -b fitted-cat.blend --python art/export_cat.py
+PURRLOCK_CAT_STAGE=/tmp/purrlock-bake blender -b art/room.blend --python art/clear_room_cat.py
+python3 art/pack_cat_room.py /tmp/purrlock-bake/sofa-clear.png cat-reference-uv.png
+```
