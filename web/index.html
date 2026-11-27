@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>福尔猫斯 · 午后客厅</title>
+<meta name="description" content="福尔猫斯：一间午后的客厅，七件等你发现的餐具。">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+<main class="case">
+<header>
+  <div><div class="eyebrow">PURRLOCK HOLMES <span>·</span> CASE 01</div><h1>福尔猫斯</h1></div>
+  <div class="chapter"><b>午后客厅</b><small>THE TEA TABLE CASE</small></div>
+</header>
+<section class="stage" aria-label="可拖动的客厅场景">
+ <canvas id="room" aria-label="拖动画面，点击你找到的餐具"></canvas>
+ <div class="guide">拖动看房间 <i></i> 点按收集</div>
+ <div class="victory" id="victory" hidden><div>✦</div><strong>餐具找齐了！</strong><button id="again" type="button">再玩一局</button></div>
+ <div class="loading" id="loading" role="status">正在打开案卷…</div>
+</section>
+<footer>
+ <div class="count"><span>本关线索 · 餐具</span><strong id="count" aria-live="polite">0 <small>/ 7</small></strong></div>
+ <ul id="items" aria-label="待收集餐具"></ul>
+</footer>
+</main>
+<script defer src="./game.js"></script>
+</body></html>
