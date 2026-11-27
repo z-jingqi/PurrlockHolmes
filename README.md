@@ -58,3 +58,20 @@ python3 art/pack_pickups.py  # 需要 Pillow
 blender -b art/room.blend --python art/render_wrong.py
 python3 art/pack_wrong.py  # 需要 Pillow
 ```
+
+## Godot：物理试验关卡
+
+用 Godot 打开项目，F5 后点右上角「物理试验」（也可直接运行 `physics/physics_room.tscn`）。先点走矮桌，再点落地的杯子、盘子和叉子。「原版」回到固定透视找物关。网页版保持原版，不承载这个原生 3D 试验。
+
+- 仍然是锁定透视相机。拖动画面时只平移同一张取景画面，不改变相机方向。
+- 桌面支撑移除后，杯盘、叉子、两本册子和橘子有独立刚体、重力、摩擦和碰撞。不同道具材质具有不同表面高光/粗糙度。
+- 落地后会采样每件目标在固定镜头下可点到的投影区域；阈值是 25%，分母是目标未被遮住时的点击代理轮廓，不是精确的渲染像素面积。优先轻推挡路的道具，仍挡住时才把目标滑向经过检验的空位。
+- 毛巾用可变形网格与桌面、桌沿、地面接触。放在桌上时上缘以摩擦锚定模型稳定，外侧受重力下垂；移桌后解除锚点。原型尚未做毛巾与全部小道具之间的双向碰撞。
+- 几何从原 Blender 场景导出，不依赖手工重摆。重建：`blender -b art/room.blend --python art/export_physics.py`。
+
+导入资源后，可跑正常落地 + 强制遮挡回归：
+
+```sh
+godot --headless --path . res://physics/physics_room.tscn -- --test-physics --test-covered
+godot --headless --path . -- --test-demo
+```

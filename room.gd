@@ -33,6 +33,7 @@ var dragged := false
 var title: Label
 var subtitle: Label
 var hint: Label
+var physics_button: Button
 var hud: Label
 var done: Label
 var reset: Button
@@ -61,6 +62,12 @@ func _ready() -> void:
 	hint_button.custom_minimum_size = Vector2(75,39)
 	hint_button.pressed.connect(_hint_target)
 	add_child(hint_button)
+	physics_button = Button.new()
+	physics_button.text = "物理试验"
+	physics_button.add_theme_font_override("font",hud.get_theme_font("font"))
+	physics_button.size = Vector2(91,38)
+	physics_button.pressed.connect(func():get_tree().change_scene_to_file("res://physics/physics_room.tscn"))
+	add_child(physics_button)
 	resized.connect(_relayout)
 	_reset()
 	if "--test-demo" in OS.get_cmdline_user_args():
@@ -88,8 +95,9 @@ func _layout() -> void:
 	title.position = Vector2(20, 5)
 	subtitle.position = Vector2(22, 46)
 	_align_footer()
-	hint.position = Vector2(maxf(20, size.x - 178), 21)
-	hint.visible = size.x >= 350
+	hint.position = Vector2(maxf(20, size.x - 276), 21)
+	hint.visible = size.x >= 530
+	physics_button.position = Vector2(maxf(0,size.x-108),14)
 	done.position = Vector2(22, 87)
 	queue_redraw()
 
